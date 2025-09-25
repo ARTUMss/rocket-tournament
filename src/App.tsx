@@ -45,7 +45,7 @@ const App: React.FC = () => {
   const [teamName, setTeamName] = useState('');
   const [teamLogo, setTeamLogo] = useState('');
   const [teamPlayers, setTeamPlayers] = useState<any[]>([]);
-  const [isOrganizer, setIsOrganizer] = useState(false); // Простая проверка роли
+  const [isOrganizer, setIsOrganizer] = useState(false); // Роль организатора
 
   useEffect(() => {
     onSnapshot(collection(db, 'players'), (snapshot) => {
@@ -170,25 +170,28 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12">
-      <div className="relative py-3 sm:max-w-xl sm:mx-auto">
-        <h1 className="text-4xl font-bold text-center text-blue-600 mb-6">Rocket League Tournament</h1>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-blue-900 flex items-center justify-center p-4">
+      <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-2xl p-6 w-full max-w-4xl">
+        <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 text-center mb-8">
+          Rocket League Tournament
+        </h1>
 
-        <div className="bg-white shadow-lg rounded-lg p-6 mb-6">
+        {/* Add Player Form */}
+        <div className="bg-gray-50 p-6 rounded-lg shadow-inner mb-6">
           <h2 className="text-2xl font-semibold text-gray-800 mb-4">Add Player</h2>
-          <form onSubmit={addPlayer} className="space-y-4">
+          <form onSubmit={addPlayer} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="text"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               placeholder="Nickname"
-              className="border border-gray-300 p-2 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
               required
             />
             <select
               value={platform}
               onChange={(e) => setPlatform(e.target.value)}
-              className="border border-gray-300 p-2 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
               <option value="steam">Steam</option>
               <option value="epic">Epic</option>
@@ -199,42 +202,46 @@ const App: React.FC = () => {
               type="text"
               value={trackerLink}
               onChange={(e) => setTrackerLink(e.target.value)}
-              placeholder="Tracker Network Profile URL (optional)"
-              className="border border-gray-300 p-2 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Tracker URL (optional)"
+              className="border border-gray-300 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 col-span-2"
             />
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="border border-gray-300 p-2 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 col-span-2"
             >
               <option value="Ищу команду">Ищу команду</option>
               <option value="Капитан">Капитан</option>
             </select>
-            <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg w-full hover:bg-blue-700 transition duration-300">
+            <button
+              type="submit"
+              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-2 rounded-lg hover:from-blue-600 hover:to-purple-700 transition duration-300 col-span-2"
+            >
               Add Player
             </button>
           </form>
         </div>
 
-        <div className="bg-white shadow-lg rounded-lg p-6">
+        {/* Create Team Form */}
+        <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
           <h2 className="text-2xl font-semibold text-gray-800 mb-4">Create Team</h2>
-          <form onSubmit={createTeam} className="space-y-4">
+          <form onSubmit={createTeam} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="text"
               value={teamName}
               onChange={(e) => setTeamName(e.target.value)}
               placeholder="Team Name"
-              className="border border-gray-300 p-2 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
               required
             />
             <button
               type="button"
               onClick={cloudinaryWidget}
-              className="bg-green-600 text-white p-2 rounded-lg w-full hover:bg-green-700 transition duration-300"
+              className="bg-gradient-to-r from-green-500 to-teal-600 text-white p-2 rounded-lg hover:from-green-600 hover:to-teal-700 transition duration-300"
             >
-              Upload Team Logo
+              Upload Logo
             </button>
-            {teamLogo && <img src={teamLogo} alt="Team Logo" className="w-20 h-20 object-cover mt-2 rounded" />}
+            {teamLogo && <img src={teamLogo} alt="Team Logo" className="w-20 h-20 object-cover rounded mt-2 col-span-2" />}
             <select
               multiple
               value={teamPlayers.map((p: { id: string }) => p.id)}
@@ -243,57 +250,67 @@ const App: React.FC = () => {
                 const selectedPlayers = Array.from(options).map(option => players.find(p => p.id === option.value));
                 setTeamPlayers(selectedPlayers as any[]);
               }}
-              className="border border-gray-300 p-2 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500 h-32"
+              className="border border-gray-300 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 col-span-2 h-32"
             >
               {players.map(player => (
                 <option key={player.id} value={player.id}>{player.nickname} ({player.currentRank})</option>
               ))}
             </select>
-            <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg w-full hover:bg-blue-700 transition duration-300">
+            <button
+              type="submit"
+              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-2 rounded-lg hover:from-blue-600 hover:to-purple-700 transition duration-300 col-span-2"
+            >
               Create Team
             </button>
           </form>
         </div>
 
+        {/* Players and Teams */}
         <div className="mt-8">
-          <h2 className="text-2xl font-semibold text-gray-800 mb-4">Tournament Participants</h2>
+          <h2 className="text-2xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mb-4">Participants</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {players.map(player => (
-              <div key={player.id} className="bg-white shadow-md rounded-lg p-4 border border-gray-200">
-                <h3 className="font-bold text-lg text-gray-900">{player.nickname}</h3>
+              <div
+                key={player.id}
+                className="bg-white rounded-lg p-4 shadow-lg hover:shadow-xl transition-shadow duration-300 border border-gray-200"
+              >
+                <h3 className="font-bold text-xl text-gray-800">{player.nickname}</h3>
                 <p className="text-gray-600">Platform: {player.platform}</p>
                 <p className="text-gray-600">Current Rank: {player.currentRank}</p>
                 <p className="text-gray-600">Highest Rank: {player.highestRank}</p>
                 <p className="text-gray-600">MMR: {player.mmr}</p>
                 <p className="text-gray-600">Status: {player.status}</p>
                 {player.trackerLink && (
-                  <a href={player.trackerLink} target="_blank" className="text-blue-500 hover:underline">Tracker Profile</a>
+                  <a href={player.trackerLink} target="_blank" className="text-blue-500 hover:underline">Tracker</a>
                 )}
                 {isOrganizer && (
                   <button
                     onClick={() => deletePlayer(player.id)}
-                    className="mt-2 bg-red-600 text-white p-1 rounded-lg hover:bg-red-700 transition duration-300 w-full"
+                    className="mt-2 w-full bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition duration-300"
                   >
-                    Delete Player
+                    Delete
                   </button>
                 )}
               </div>
             ))}
           </div>
-          <h2 className="text-2xl font-semibold text-gray-800 mt-8 mb-4">Teams</h2>
+          <h2 className="text-2xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mt-8 mb-4">Teams</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {teams.map(team => (
-              <div key={team.id} className="bg-white shadow-md rounded-lg p-4 border border-gray-200">
-                <h3 className="font-bold text-lg text-gray-900">{team.name}</h3>
-                {team.logo && <img src={team.logo} alt="Team Logo" className="w-20 h-20 object-cover mt-2 rounded" />}
+              <div
+                key={team.id}
+                className="bg-white rounded-lg p-4 shadow-lg hover:shadow-xl transition-shadow duration-300 border border-gray-200"
+              >
+                <h3 className="font-bold text-xl text-gray-800">{team.name}</h3>
+                {team.logo && <img src={team.logo} alt="Team Logo" className="w-20 h-20 object-cover rounded mt-2" />}
                 <p className="text-gray-600">Average MMR: {team.averageMMR}</p>
                 <p className="text-gray-600">Players: {team.players.map((id: any) => players.find(p => p.id === id)?.nickname).join(', ')}</p>
                 {isOrganizer && (
                   <button
                     onClick={() => deleteTeam(team.id)}
-                    className="mt-2 bg-red-600 text-white p-1 rounded-lg hover:bg-red-700 transition duration-300 w-full"
+                    className="mt-2 w-full bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition duration-300"
                   >
-                    Delete Team
+                    Delete
                   </button>
                 )}
               </div>
