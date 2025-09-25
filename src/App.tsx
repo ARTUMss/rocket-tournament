@@ -118,7 +118,7 @@ const App: React.FC = () => {
     setNickname('');
     setPlatform('steam');
     setTrackerLink('');
-    setStatus('Ищу команду');
+    setStatus('И2щу команду');
   };
 
   const deletePlayer = async (playerId: string) => {
