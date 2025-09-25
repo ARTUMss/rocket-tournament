@@ -53,6 +53,13 @@ const getRankImage = (rank: string): string => {
   return rankImages[rank] || rankImages['Unranked'];
 };
 
+// Список организаторов (можно вынести в Firebase)
+const ORGANIZERS = [
+  'admin@tournament.com',
+  'organizer@tournament.com',
+  'your-email@domain.com' // Добавьте сюда email организатора
+];
+
 const App: React.FC = () => {
   const [players, setPlayers] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
@@ -72,8 +79,24 @@ const App: React.FC = () => {
   const [showRules, setShowRules] = useState(false);
   const [tournamentRules, setTournamentRules] = useState('Tournament Rules:\n\n1. Team Composition: 3 players per team\n2. Format: Double elimination bracket\n3. Match Rules: Best of 3 for early rounds, Best of 5 for finals\n4. Server Selection: EU servers preferred\n5. Schedule: Matches must be completed within designated timeframes\n\nPlease ensure fair play and good sportsmanship throughout the tournament.');
   const [editingRules, setEditingRules] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
+    // Проверяем авторизацию пользователя (заглушка - в реальном приложении используйте Firebase Auth)
+    const checkAuth = () => {
+      // В реальном приложении здесь будет проверка через Firebase Auth
+      const savedEmail = localStorage.getItem('tournament_user_email');
+      if (savedEmail) {
+        setUserEmail(savedEmail);
+        setIsAuthenticated(true);
+        // Автоматически определяем организатора по email
+        setIsOrganizer(ORGANIZERS.includes(savedEmail));
+      }
+    };
+
+    checkAuth();
+
     const unsubscribePlayers = onSnapshot(collection(db, 'players'), (snapshot) => {
       const playersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setPlayers(playersData);
@@ -84,7 +107,6 @@ const App: React.FC = () => {
       setTeams(teamsData);
     });
 
-    // Загружаем правила турнира из Firebase
     loadTournamentRules();
 
     return () => {
@@ -92,6 +114,20 @@ const App: React.FC = () => {
       unsubscribeTeams();
     };
   }, []);
+
+  const handleLogin = (email: string) => {
+    setUserEmail(email);
+    setIsAuthenticated(true);
+    setIsOrganizer(ORGANIZERS.includes(email));
+    localStorage.setItem('tournament_user_email', email);
+  };
+
+  const handleLogout = () => {
+    setUserEmail('');
+    setIsAuthenticated(false);
+    setIsOrganizer(false);
+    localStorage.removeItem('tournament_user_email');
+  };
 
   const loadTournamentRules = async () => {
     try {
@@ -117,13 +153,10 @@ const App: React.FC = () => {
     }
   };
 
-  // Функция для парсинга данных из tracker.gg
   const parseTrackerData = async (url: string) => {
     try {
-      // Временная заглушка - когда API будет готово, заменим на реальный запрос
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Mock данные для демонстрации
       const mockRanks = ['Bronze I', 'Bronze II', 'Bronze III', 'Silver I', 'Silver II', 'Silver III', 
                         'Gold I', 'Gold II', 'Gold III', 'Platinum I', 'Platinum II', 'Platinum III',
                         'Diamond I', 'Diamond II', 'Diamond III', 'Champion I', 'Champion II', 'Champion III',
@@ -192,7 +225,8 @@ const App: React.FC = () => {
         rank: playerData.rank,
         rankImage: playerData.rankImage,
         status: status,
-        createdAt: new Date()
+        createdAt: new Date(),
+        userEmail: userEmail // Сохраняем email пользователя
       });
       
       setNickname('');
@@ -256,7 +290,8 @@ const App: React.FC = () => {
         logo: teamLogo,
         players: playerIds,
         averageMMR,
-        createdAt: new Date()
+        createdAt: new Date(),
+        createdBy: userEmail
       });
       
       setTeamName('');
@@ -274,8 +309,53 @@ const App: React.FC = () => {
     { id: 'add-player', label: 'Добавление аккаунта' },
     { id: 'players-list', label: 'Список игроков' },
     { id: 'create-team', label: 'Создание команды' },
-    { id: 'teams-list', label: 'Список команд' }
+    { id: 'teams-list', label: 'Список команд' },
+    { id: 'bracket', label: 'Турнирная сетка', disabled: true }
   ];
+
+  // Компонент авторизации
+  const LoginForm = () => (
+    <div style={styles.loginContainer}>
+      <div style={styles.loginForm}>
+        <h2 style={styles.loginTitle}>Вход в систему</h2>
+        <p style={styles.loginSubtitle}>Введите ваш email для продолжения</p>
+        
+        <div style={styles.formGroup}>
+          <input
+            type="email"
+            value={userEmail}
+            onChange={(e) => setUserEmail(e.target.value)}
+            placeholder="your@email.com"
+            style={styles.input}
+          />
+        </div>
+        
+        <button
+          onClick={() => handleLogin(userEmail)}
+          disabled={!userEmail}
+          style={{
+            ...styles.submitButton,
+            ...(!userEmail && styles.buttonDisabled)
+          }}
+        >
+          Войти
+        </button>
+
+        <div style={styles.organizerHint}>
+          <p>Для доступа к функциям организатора используйте email:</p>
+          <ul style={styles.organizerList}>
+            {ORGANIZERS.map((email, index) => (
+              <li key={index} style={styles.organizerEmail}>{email}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (!isAuthenticated) {
+    return <LoginForm />;
+  }
 
   return (
     <div style={styles.container}>
@@ -338,34 +418,32 @@ const App: React.FC = () => {
         <div style={styles.headerContent}>
           <div>
             <h1 style={styles.title}>Rocket League Tournament</h1>
-            <p style={styles.subtitle}>Панель управления турниром</p>
+            <p style={styles.subtitle}>
+              {isOrganizer ? 'Панель управления турниром' : 'Панель участника турнира'}
+            </p>
           </div>
           
-          {/* Кнопка правил турнира */}
-          <button 
-            style={styles.rulesButton}
-            onClick={() => setShowRules(true)}
-          >
-            Tournament Rules
-          </button>
-        </div>
-        
-        <div style={styles.organizerSwitch}>
-          <label style={styles.switchLabel}>
-            <input
-              type="checkbox"
-              checked={isOrganizer}
-              onChange={(e) => setIsOrganizer(e.target.checked)}
-              style={styles.switchInput}
-            />
-            <span style={{
-              ...styles.switchSlider,
-              ...(isOrganizer ? styles.switchSliderActive : {})
-            }}></span>
-            <span style={styles.switchText}>
-              {isOrganizer ? 'Организатор' : 'Игрок'}
-            </span>
-          </label>
+          <div style={styles.headerRight}>
+            <button 
+              style={styles.rulesButton}
+              onClick={() => setShowRules(true)}
+            >
+              Tournament Rules
+            </button>
+            
+            <div style={styles.userInfo}>
+              <span style={styles.userEmail}>{userEmail}</span>
+              {isOrganizer && (
+                <span style={styles.organizerBadge}>Организатор</span>
+              )}
+              <button 
+                style={styles.logoutButton}
+                onClick={handleLogout}
+              >
+                Выйти
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -375,13 +453,16 @@ const App: React.FC = () => {
           {tabs.map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => !tab.disabled && setActiveTab(tab.id)}
               style={{
                 ...styles.navButton,
-                ...(activeTab === tab.id ? styles.navButtonActive : {})
+                ...(activeTab === tab.id ? styles.navButtonActive : {}),
+                ...(tab.disabled ? styles.navButtonDisabled : {})
               }}
+              title={tab.disabled ? 'В разработке' : ''}
             >
               {tab.label}
+              {tab.disabled && <span style={styles.lockIcon}> 🔒</span>}
             </button>
           ))}
         </div>
@@ -740,6 +821,24 @@ const App: React.FC = () => {
               )}
             </div>
           )}
+
+          {/* Tournament Bracket Tab */}
+          {activeTab === 'bracket' && (
+            <div style={styles.comingSoonContainer}>
+              <div style={styles.comingSoonContent}>
+                <div style={styles.comingSoonIcon}>🏆</div>
+                <h2 style={styles.comingSoonTitle}>Турнирная сетка</h2>
+                <p style={styles.comingSoonText}>
+                  Раздел находится в разработке. Скоро здесь появится турнирная сетка с матчами и результатами.
+                </p>
+                {isOrganizer && (
+                  <p style={styles.organizerNote}>
+                    Как организатор, вы сможете управлять турнирной сеткой после запуска функционала.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
@@ -752,6 +851,55 @@ const styles = {
     minHeight: '100vh',
     background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
     fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
+  },
+  
+  // Login Styles
+  loginContainer: {
+    minHeight: '100vh',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)'
+  },
+  
+  loginForm: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    backdropFilter: 'blur(10px)',
+    padding: '3rem',
+    borderRadius: '12px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    width: '100%',
+    maxWidth: '400px'
+  },
+  
+  loginTitle: {
+    color: 'white',
+    textAlign: 'center',
+    marginBottom: '0.5rem'
+  },
+  
+  loginSubtitle: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    marginBottom: '2rem'
+  },
+  
+  organizerHint: {
+    marginTop: '2rem',
+    padding: '1rem',
+    background: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: '8px',
+    color: 'rgba(255, 255, 255, 0.8)'
+  },
+  
+  organizerList: {
+    margin: '0.5rem 0',
+    paddingLeft: '1.5rem'
+  },
+  
+  organizerEmail: {
+    fontSize: '0.8rem',
+    marginBottom: '0.25rem'
   },
   
   header: {
@@ -768,6 +916,43 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center'
+  },
+  
+  headerRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem'
+  },
+  
+  userInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+    color: 'white'
+  },
+  
+  userEmail: {
+    fontSize: '0.9rem',
+    opacity: '0.8'
+  },
+  
+  organizerBadge: {
+    background: '#10b981',
+    color: 'white',
+    padding: '0.25rem 0.75rem',
+    borderRadius: '12px',
+    fontSize: '0.8rem',
+    fontWeight: '600'
+  },
+  
+  logoutButton: {
+    background: 'rgba(239, 68, 68, 0.2)',
+    color: '#fca5a5',
+    border: '1px solid rgba(239, 68, 68, 0.3)',
+    padding: '0.5rem 1rem',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '0.8rem'
   },
   
   title: {
@@ -795,42 +980,6 @@ const styles = {
     transition: 'all 0.3s'
   },
   
-  organizerSwitch: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '1rem'
-  },
-  
-  switchLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    cursor: 'pointer',
-    color: 'white'
-  },
-  
-  switchInput: {
-    display: 'none'
-  },
-  
-  switchSlider: {
-    width: '50px',
-    height: '24px',
-    backgroundColor: '#ccc',
-    borderRadius: '24px',
-    position: 'relative',
-    transition: 'all 0.3s'
-  },
-  
-  switchSliderActive: {
-    backgroundColor: '#10b981'
-  },
-  
-  switchText: {
-    fontSize: '0.9rem',
-    fontWeight: '500'
-  },
-  
   nav: {
     background: 'rgba(255, 255, 255, 0.05)',
     borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
@@ -853,13 +1002,24 @@ const styles = {
     fontWeight: '500',
     cursor: 'pointer',
     transition: 'all 0.3s',
-    borderBottom: '3px solid transparent'
+    borderBottom: '3px solid transparent',
+    position: 'relative'
   },
   
   navButtonActive: {
     color: 'white',
     borderBottomColor: '#10b981',
     background: 'rgba(255, 255, 255, 0.1)'
+  },
+  
+  navButtonDisabled: {
+    opacity: '0.5',
+    cursor: 'not-allowed'
+  },
+  
+  lockIcon: {
+    fontSize: '0.8rem',
+    marginLeft: '0.5rem'
   },
   
   main: {
@@ -1308,6 +1468,41 @@ const styles = {
     textAlign: 'center'
   },
   
+  // Coming Soon Styles
+  comingSoonContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '400px'
+  },
+  
+  comingSoonContent: {
+    textAlign: 'center',
+    color: 'white'
+  },
+  
+  comingSoonIcon: {
+    fontSize: '4rem',
+    marginBottom: '1rem'
+  },
+  
+  comingSoonTitle: {
+    fontSize: '2rem',
+    marginBottom: '1rem'
+  },
+  
+  comingSoonText: {
+    fontSize: '1.1rem',
+    opacity: '0.8',
+    marginBottom: '1rem'
+  },
+  
+  organizerNote: {
+    fontSize: '0.9rem',
+    opacity: '0.6',
+    fontStyle: 'italic'
+  },
+  
   // Modal Styles
   modalOverlay: {
     position: 'fixed',
@@ -1319,8 +1514,7 @@ const styles = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1000,
-    animation: 'fadeIn 0.3s ease-in-out'
+    zIndex: 1000
   },
   
   modalContent: {
@@ -1331,8 +1525,7 @@ const styles = {
     width: '90%',
     maxHeight: '80vh',
     overflow: 'auto',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    animation: 'slideUp 0.3s ease-out'
+    border: '1px solid rgba(255, 255, 255, 0.2)'
   },
   
   modalHeader: {
