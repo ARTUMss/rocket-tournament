@@ -20,7 +20,7 @@ interface TrackerSegment {
   };
 }
 
-// Firebase Config (Replace with your config from Firebase Console)
+// Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyDwSE1p_SeMwQSiV1Yu5rxYBjC_RKw9bF0",
   authDomain: "rocket-a799b.firebaseapp.com",
@@ -40,8 +40,7 @@ const App: React.FC = () => {
   const [nickname, setNickname] = useState('');
   const [platform, setPlatform] = useState('steam');
   const [trackerLink, setTrackerLink] = useState('');
-  const [rank, setRank] = useState('');
-  const [status, setStatus] = useState('Свободен');
+  const [status, setStatus] = useState('Ищу команду');
   const [teamName, setTeamName] = useState('');
   const [teamLogo, setTeamLogo] = useState('');
   const [teamPlayers, setTeamPlayers] = useState<any[]>([]);
@@ -58,7 +57,7 @@ const App: React.FC = () => {
   const fetchRank = async (nickname: string, platform: string) => {
     try {
       const response = await axios.get(`https://api.tracker.gg/api/v2/rocket-league/standard/profile/${platform}/${nickname}`, {
-        headers: { 'TRN-Api-Key': 'YOUR_TRACKER_API_KEY' }
+        headers: { 'TRN-Api-Key': '9d369df8-7267-493f-af55-df8c230ddc27' } // Твой ключ
       });
       const segment = response.data.data.segments.find((seg: TrackerSegment) => seg.attributes.playlistId === 13);
       const mmr = segment?.stats.rating.value || 'N/A';
@@ -77,22 +76,21 @@ const App: React.FC = () => {
       nickname,
       platform,
       trackerLink,
-      rank: rank || fetchedRank,
+      rank: fetchedRank, // Теперь только из API
       mmr: mmr !== 'N/A' ? mmr : 0,
       status
     });
     setNickname('');
     setPlatform('steam');
     setTrackerLink('');
-    setRank('');
-    setStatus('Свободен');
+    setStatus('Ищу команду');
   };
 
   const cloudinaryWidget = () => {
-    // @ts-ignore (временное игнорирование, пока нет официальных типов)
+    // @ts-ignore
     const widget = window.cloudinary.createUploadWidget(
       { 
-        cloudName: 'dxxxpp50c', // Замени на свой cloud name
+        cloudName: 'dxxxp50c', // Замени на свой cloud name
         uploadPreset: 'rocket-logo-upload' // Замени на свой preset
       },
       (error: any, result: any) => {
@@ -153,27 +151,12 @@ const App: React.FC = () => {
             className="border p-2 rounded w-full"
           />
           <select
-            value={rank}
-            onChange={(e) => setRank(e.target.value)}
-            className="border p-2 rounded w-full"
-          >
-            <option value="">Select Rank (Optional)</option>
-            <option value="Bronze 1">Bronze 1</option>
-            <option value="Silver 1">Silver 1</option>
-            <option value="Gold 1">Gold 1</option>
-            <option value="Platinum 1">Platinum 1</option>
-            <option value="Diamond 1">Diamond 1</option>
-            <option value="Champion 1">Champion 1</option>
-            <option value="Grand Champion 1">Grand Champion 1</option>
-          </select>
-          <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
             className="border p-2 rounded w-full"
           >
-            <option value="Свободен">Свободен</option>
             <option value="Ищу команду">Ищу команду</option>
-            <option value="Лидер команды">Лидер команды</option>
+            <option value="Капитан">Капитан</option>
           </select>
           <button type="submit" className="bg-blue-500 text-white p-2 rounded">Add Player</button>
         </form>
@@ -200,7 +183,7 @@ const App: React.FC = () => {
           {teamLogo && <img src={teamLogo} alt="Team Logo" className="w-20 h-20 object-cover" />}
           <select
             multiple
-            value={teamPlayers.map((p: { id: string }) => p.id)} // Явная типизация
+            value={teamPlayers.map((p: { id: string }) => p.id)}
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
               const options = e.currentTarget.selectedOptions;
               const selectedPlayers = Array.from(options).map(option => players.find(p => p.id === option.value));
