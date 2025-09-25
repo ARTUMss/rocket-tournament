@@ -252,8 +252,16 @@ const App: React.FC = () => {
       {/* Header */}
       <header style={styles.header}>
         <div style={styles.headerContent}>
-          <h1 style={styles.title}>Rocket League Tournament</h1>
-          <p style={styles.subtitle}>Панель управления турниром</p>
+          <div>
+            <h1 style={styles.title}>Rocket League Tournament</h1>
+            <p style={styles.subtitle}>Панель управления турниром</p>
+          </div>
+          
+          {/* Кнопка правил турнира */}
+          <button style={styles.rulesButton}>
+            <span style={styles.rulesIcon}>📋</span>
+            Правила турнира
+          </button>
         </div>
         
         <div style={styles.organizerSwitch}>
@@ -412,7 +420,7 @@ const App: React.FC = () => {
                       style={styles.select}
                     >
                       <option value="Ищу команду">Ищу команду</option>
-                      <option value="Капитан">Капитан (ищу команду)</option>
+                      <option value="Капитан">Капитан</option> {/* Убрано "(ищу команду)" */}
                     </select>
                     <span style={styles.selectArrow}>▼</span>
                   </div>
@@ -689,6 +697,24 @@ const styles = {
     fontSize: '1.1rem'
   },
   
+  rulesButton: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    color: 'white',
+    padding: '0.5rem 1rem',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.9rem',
+    transition: 'all 0.3s'
+  },
+  
+  rulesIcon: {
+    fontSize: '1.2rem'
+  },
+  
   organizerSwitch: {
     display: 'flex',
     alignItems: 'center',
@@ -838,12 +864,13 @@ const styles = {
   
   input: {
     padding: '0.75rem 1rem',
-    background: 'rgba(255, 255, 255, 0.15)',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
+    background: 'rgba(0, 0, 0, 0.3)',
+    border: '1px solid rgba(255, 255, 255, 0.5)',
     borderRadius: '8px',
     color: 'white',
     fontSize: '1rem',
-    transition: 'all 0.3s'
+    transition: 'all 0.3s',
+    fontWeight: '500'
   },
   
   selectContainer: {
@@ -853,13 +880,14 @@ const styles = {
   
   select: {
     padding: '0.75rem 1rem',
-    background: 'rgba(255, 255, 255, 0.15)',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
+    background: 'rgba(0, 0, 0, 0.4)',
+    border: '1px solid rgba(255, 255, 255, 0.5)',
     borderRadius: '8px',
     color: 'white',
     fontSize: '1rem',
     width: '100%',
-    appearance: 'none'
+    appearance: 'none',
+    fontWeight: '500'
   },
   
   selectArrow: {
