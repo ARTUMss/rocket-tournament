@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc } from 'firebase/firestore';
+import * as cheerio from 'cheerio';
 
 // Интерфейс для данных Tracker API
 interface TrackerSegment {
@@ -54,31 +55,64 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const fetchRank = async (nickname: string, platform: string) => {
+  const parseProfileFromUrl = async (url: string) => {
     try {
-      const response = await axios.get(`https://api.tracker.gg/api/v2/rocket-league/standard/profile/${platform}/${nickname}`, {
-        headers: { 'TRN-Api-Key': '9d369df8-7267-493f-af55-df8c230ddc27' } // Твой ключ
-      });
-      const segment = response.data.data.segments.find((seg: TrackerSegment) => seg.attributes.playlistId === 13);
-      const mmr = segment?.stats.rating.value || 'N/A';
-      const rank = segment?.stats.tier.metadata.name || 'N/A';
-      return { mmr, rank };
+      const response = await axios.get(url);
+      const $ = cheerio.load(response.data);
+      const currentRank = $('.trn-ranking__tier .trn-ranking__tier__name').text().trim() || 'N/A';
+      const highestRank = $('.trn-performance__highest .trn-ranking__tier__name, .season-rewards__highest').text().trim() || 'N/A';
+      const mmrText = $('.trn-rating__value').text().trim();
+      const mmr = isNaN(Number(mmrText)) ? 0 : Number(mmrText); // Гарантированное число
+      return { currentRank, highestRank, mmr };
     } catch (error) {
-      console.error('Error fetching rank:', error);
-      return { mmr: 'N/A', rank: 'N/A' };
+      console.error('Error parsing profile:', error);
+      return { currentRank: 'N/A', highestRank: 'N/A', mmr: 0 };
     }
+  };
+
+  const extractFromUrl = (url: string) => {
+    const match = url.match(/profile\/(steam|epic|psn|xbl)\/([^\/]+)/i);
+    return match ? { platform: match[1], nickname: match[2] } : null;
+  };
+
+  const fetchRank = async (nickname: string, platform: string, url?: string) => {
+    let currentRank = 'N/A';
+    let highestRank = 'N/A';
+    let mmr = 0; // По умолчанию число
+
+    if (url) {
+      const parsed = await parseProfileFromUrl(url);
+      currentRank = parsed.currentRank;
+      highestRank = parsed.highestRank;
+      mmr = parsed.mmr;
+    } else {
+      try {
+        const response = await axios.get(`https://api.tracker.gg/api/v2/rocket-league/standard/profile/${platform}/${nickname}`, {
+          headers: { 'TRN-Api-Key': '9d369df8-7267-493f-af55-df8c230ddc27' }
+        });
+        const segment = response.data.data.segments.find((seg: TrackerSegment) => seg.attributes.playlistId === 13);
+        mmr = segment?.stats.rating.value || 0;
+        currentRank = segment?.stats.tier.metadata.name || 'N/A';
+        highestRank = 'N/A';
+      } catch (error) {
+        console.error('Error fetching from API:', error);
+      }
+    }
+
+    return { mmr, currentRank, highestRank };
   };
 
   const addPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { mmr, rank: fetchedRank } = await fetchRank(nickname, platform);
+    const { mmr, currentRank, highestRank } = await fetchRank(nickname, platform, trackerLink);
     await addDoc(collection(db, 'players'), {
-      nickname,
-      platform,
-      trackerLink,
-      rank: fetchedRank, // Теперь только из API
-      mmr: mmr !== 'N/A' ? mmr : 0,
-      status
+      nickname: nickname as string,
+      platform: platform as string,
+      trackerLink: trackerLink as string,
+      currentRank: currentRank as string,
+      highestRank: highestRank as string,
+      mmr: mmr as number, // Явно указываем тип number
+      status: status as string
     });
     setNickname('');
     setPlatform('steam');
@@ -90,8 +124,8 @@ const App: React.FC = () => {
     // @ts-ignore
     const widget = window.cloudinary.createUploadWidget(
       { 
-        cloudName: 'dxxxp50c', // Замени на свой cloud name
-        uploadPreset: 'rocket-logo-upload' // Замени на свой preset
+        cloudName: 'dxxxp50c', // Замени на свой
+        uploadPreset: 'rocket-logo-upload' // Замени на свой
       },
       (error: any, result: any) => {
         if (!error && result && result.event === "success") {
@@ -147,7 +181,7 @@ const App: React.FC = () => {
             type="text"
             value={trackerLink}
             onChange={(e) => setTrackerLink(e.target.value)}
-            placeholder="Tracker Network Profile URL"
+            placeholder="Tracker Network Profile URL (optional)"
             className="border p-2 rounded w-full"
           />
           <select
@@ -192,7 +226,7 @@ const App: React.FC = () => {
             className="border p-2 rounded w-full"
           >
             {players.map(player => (
-              <option key={player.id} value={player.id}>{player.nickname} ({player.rank})</option>
+              <option key={player.id} value={player.id}>{player.nickname} ({player.currentRank})</option>
             ))}
           </select>
           <button type="submit" className="bg-blue-500 text-white p-2 rounded">Create Team</button>
@@ -206,7 +240,8 @@ const App: React.FC = () => {
             <div key={player.id} className="border p-4 rounded">
               <h3 className="font-bold">{player.nickname}</h3>
               <p>Platform: {player.platform}</p>
-              <p>Rank: {player.rank}</p>
+              <p>Current Rank: {player.currentRank}</p>
+              <p>Highest Rank: {player.highestRank}</p>
               <p>MMR: {player.mmr}</p>
               <p>Status: {player.status}</p>
               {player.trackerLink && (
