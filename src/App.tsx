@@ -3,23 +3,6 @@ import axios from 'axios';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
 
-// Интерфейс для данных Tracker API
-interface TrackerSegment {
-  attributes: {
-    playlistId: number;
-  };
-  stats: {
-    rating: {
-      value: number;
-    };
-    tier: {
-      metadata: {
-        name: string;
-      };
-    };
-  };
-}
-
 // Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyDwSE1p_SeMwQSiV1Yu5rxYBjC_RKw9bF0",
@@ -47,8 +30,8 @@ const App: React.FC = () => {
   const [isOrganizer, setIsOrganizer] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('add-player');
   const [successMessage, setSuccessMessage] = useState('');
+  const [activeTab, setActiveTab] = useState('add-player');
 
   useEffect(() => {
     const unsubscribePlayers = onSnapshot(
@@ -56,10 +39,6 @@ const App: React.FC = () => {
       (snapshot) => {
         const playersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setPlayers(playersData);
-      },
-      (error) => {
-        console.error('Error fetching players:', error);
-        setError('Ошибка загрузки игроков');
       }
     );
 
@@ -68,10 +47,6 @@ const App: React.FC = () => {
       (snapshot) => {
         const teamsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setTeams(teamsData);
-      },
-      (error) => {
-        console.error('Error fetching teams:', error);
-        setError('Ошибка загрузки команд');
       }
     );
 
@@ -81,37 +56,6 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const fetchRank = async (nickname: string, platform: string) => {
-    let currentRank = 'Не определен';
-    let mmr = 0;
-
-    try {
-      const response = await axios.get(
-        `https://api.tracker.gg/api/v2/rocket-league/standard/profile/${platform}/${encodeURIComponent(nickname)}`, 
-        {
-          headers: { 
-            'TRN-Api-Key': '9d369df8-7267-493f-af55-df8c230ddc27',
-            'Accept': 'application/json'
-          },
-          timeout: 10000
-        }
-      );
-      
-      const segment = response.data.data.segments.find((seg: TrackerSegment) => seg.attributes.playlistId === 13);
-      mmr = segment?.stats.rating.value || 0;
-      currentRank = segment?.stats.tier.metadata.name || 'Не определен';
-    } catch (error: any) {
-      console.error('Error fetching rank:', error);
-      if (error.response?.status === 404) {
-        throw new Error('Профиль не найден. Проверьте никнейм и платформу.');
-      } else {
-        throw new Error('Ошибка получения данных от tracker.gg');
-      }
-    }
-
-    return { mmr, currentRank };
-  };
-
   const addPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -119,25 +63,19 @@ const App: React.FC = () => {
     setSuccessMessage('');
 
     try {
-      const { mmr, currentRank } = await fetchRank(nickname, platform);
-      
       await addDoc(collection(db, 'players'), {
         nickname: nickname.trim(),
         platform: platform,
         trackerLink: trackerLink.trim(),
-        currentRank: currentRank,
-        mmr: mmr,
         status: status,
         createdAt: new Date()
       });
       
       setNickname('');
-      setPlatform('steam');
       setTrackerLink('');
-      setStatus('Ищу команду');
       setSuccessMessage('Игрок успешно добавлен!');
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error) {
+      setError('Ошибка добавления игрока');
     } finally {
       setLoading(false);
     }
@@ -171,17 +109,6 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setTeamLogo(event.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const createTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -196,14 +123,11 @@ const App: React.FC = () => {
 
     try {
       const playerIds = teamPlayers.map((p) => p.id);
-      const mmrs = teamPlayers.map((p) => p.mmr || 0);
-      const averageMMR = mmrs.length ? Math.round(mmrs.reduce((a, b) => a + b, 0) / mmrs.length) : 0;
       
       await addDoc(collection(db, 'teams'), {
         name: teamName.trim(),
         logo: teamLogo,
         players: playerIds,
-        averageMMR,
         createdAt: new Date()
       });
       
@@ -218,30 +142,6 @@ const App: React.FC = () => {
     }
   };
 
-  const getRankColor = (rank: string) => {
-    const rankLower = rank.toLowerCase();
-    if (rankLower.includes('grand champion')) return 'bg-gradient-to-r from-red-500 to-pink-600';
-    if (rankLower.includes('champion')) return 'bg-gradient-to-r from-purple-500 to-purple-600';
-    if (rankLower.includes('diamond')) return 'bg-gradient-to-r from-blue-500 to-cyan-500';
-    if (rankLower.includes('platinum')) return 'bg-gradient-to-r from-green-500 to-teal-500';
-    if (rankLower.includes('gold')) return 'bg-gradient-to-r from-yellow-500 to-orange-500';
-    if (rankLower.includes('silver')) return 'bg-gradient-to-r from-gray-400 to-gray-500';
-    if (rankLower.includes('bronze')) return 'bg-gradient-to-r from-orange-800 to-orange-900';
-    return 'bg-gradient-to-r from-gray-600 to-gray-700';
-  };
-
-  const getRankBorderColor = (rank: string) => {
-    const rankLower = rank.toLowerCase();
-    if (rankLower.includes('grand champion')) return 'border-red-400';
-    if (rankLower.includes('champion')) return 'border-purple-400';
-    if (rankLower.includes('diamond')) return 'border-blue-400';
-    if (rankLower.includes('platinum')) return 'border-green-400';
-    if (rankLower.includes('gold')) return 'border-yellow-400';
-    if (rankLower.includes('silver')) return 'border-gray-400';
-    if (rankLower.includes('bronze')) return 'border-orange-400';
-    return 'border-gray-400';
-  };
-
   const tabs = [
     { id: 'add-player', label: 'Добавление аккаунта' },
     { id: 'players-list', label: 'Список игроков' },
@@ -250,125 +150,97 @@ const App: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div style={styles.container}>
       {/* Header */}
-      <div className="bg-slate-800/50 backdrop-blur-md border-b border-slate-700/50">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                Rocket League Tournament
-              </h1>
-              <p className="text-slate-300 mt-1">Панель управления турниром</p>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3 bg-slate-700/50 rounded-lg px-4 py-2">
-                <span className="text-slate-300 text-sm">Режим:</span>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isOrganizer}
-                    onChange={(e) => setIsOrganizer(e.target.checked)}
-                    className="sr-only"
-                  />
-                  <div className={`w-11 h-6 rounded-full transition-colors duration-200 ${
-                    isOrganizer ? 'bg-green-500' : 'bg-slate-600'
-                  }`}></div>
-                  <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ${
-                    isOrganizer ? 'transform translate-x-5' : ''
-                  }`}></div>
-                </label>
-                <span className="text-slate-300 text-sm font-medium">
-                  {isOrganizer ? 'Организатор' : 'Игрок'}
-                </span>
-              </div>
-            </div>
-          </div>
+      <header style={styles.header}>
+        <div style={styles.headerContent}>
+          <h1 style={styles.title}>Rocket League Tournament</h1>
+          <p style={styles.subtitle}>Панель управления турниром</p>
         </div>
-      </div>
+        
+        <div style={styles.organizerSwitch}>
+          <label style={styles.switchLabel}>
+            <input
+              type="checkbox"
+              checked={isOrganizer}
+              onChange={(e) => setIsOrganizer(e.target.checked)}
+              style={styles.switchInput}
+            />
+            <span style={{
+              ...styles.switchSlider,
+              ...(isOrganizer ? styles.switchSliderActive : {})
+            }}></span>
+            <span style={styles.switchText}>
+              {isOrganizer ? 'Организатор' : 'Игрок'}
+            </span>
+          </label>
+        </div>
+      </header>
 
-      {/* Navigation Tabs */}
-      <div className="bg-slate-800/30 border-b border-slate-700/30">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex space-x-1">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setError('');
-                  setSuccessMessage('');
-                }}
-                className={`px-6 py-4 font-medium text-sm transition-all duration-200 border-b-2 ${
-                  activeTab === tab.id 
-                    ? 'text-blue-400 border-blue-400 bg-blue-400/10' 
-                    : 'text-slate-400 border-transparent hover:text-slate-300 hover:border-slate-400'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+      {/* Navigation */}
+      <nav style={styles.nav}>
+        <div style={styles.navContent}>
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                ...styles.navButton,
+                ...(activeTab === tab.id ? styles.navButtonActive : {})
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-      </div>
+      </nav>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <main style={styles.main}>
         {/* Messages */}
         {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
-            <div className="flex items-center space-x-2 text-red-400">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-              <span>{error}</span>
-            </div>
+          <div style={styles.errorMessage}>
+            <span>⚠️</span>
+            <span>{error}</span>
           </div>
         )}
 
         {successMessage && (
-          <div className="mb-6 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-            <div className="flex items-center space-x-2 text-green-400">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              <span>{successMessage}</span>
-            </div>
+          <div style={styles.successMessage}>
+            <span>✅</span>
+            <span>{successMessage}</span>
           </div>
         )}
 
         {/* Tab Content */}
-        <div className="bg-slate-800/20 backdrop-blur-sm rounded-xl border border-slate-700/50 p-8">
+        <div style={styles.tabContent}>
           
-          {/* Добавление аккаунта */}
+          {/* Add Player Tab */}
           {activeTab === 'add-player' && (
-            <div className="max-w-2xl mx-auto">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-white mb-2">Добавление аккаунта</h2>
-                <p className="text-slate-400">Зарегистрируйте свой аккаунт для участия в турнире</p>
-              </div>
-
-              <form onSubmit={addPlayer} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-slate-300 text-sm font-medium mb-3">Никнейм</label>
+            <div style={styles.formContainer}>
+              <h2 style={styles.tabTitle}>Добавление аккаунта</h2>
+              <p style={styles.tabSubtitle}>Зарегистрируйте свой аккаунт для участия в турнире</p>
+              
+              <form onSubmit={addPlayer} style={styles.form}>
+                <div style={styles.formGrid}>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Никнейм</label>
                     <input
                       type="text"
                       value={nickname}
                       onChange={(e) => setNickname(e.target.value)}
                       placeholder="Введите ваш никнейм"
-                      className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors duration-200"
+                      style={styles.input}
                       required
                     />
                   </div>
                   
-                  <div>
-                    <label className="block text-slate-300 text-sm font-medium mb-3">Платформа</label>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Платформа</label>
                     <select
                       value={platform}
                       onChange={(e) => setPlatform(e.target.value)}
-                      className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors duration-200"
+                      style={styles.select}
                     >
                       <option value="steam">Steam</option>
                       <option value="epic">Epic Games</option>
@@ -378,25 +250,23 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-slate-300 text-sm font-medium mb-3">
-                    Ссылка на tracker.gg
-                  </label>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Ссылка на tracker.gg</label>
                   <input
                     type="url"
                     value={trackerLink}
                     onChange={(e) => setTrackerLink(e.target.value)}
                     placeholder="https://rocketleague.tracker.network/..."
-                    className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors duration-200"
+                    style={styles.input}
                   />
                 </div>
 
-                <div>
-                  <label className="block text-slate-300 text-sm font-medium mb-3">Статус в команде</label>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Статус в команде</label>
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
-                    className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors duration-200"
+                    style={styles.select}
                   >
                     <option value="Ищу команду">Ищу команду</option>
                     <option value="Капитан">Капитан (ищу команду)</option>
@@ -406,94 +276,65 @@ const App: React.FC = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+                  style={{
+                    ...styles.submitButton,
+                    ...(loading ? styles.submitButtonDisabled : {})
+                  }}
                 >
-                  {loading ? (
-                    <span className="flex items-center justify-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Добавление...
-                    </span>
-                  ) : (
-                    'Добавить аккаунт'
-                  )}
+                  {loading ? 'Добавление...' : 'Добавить аккаунт'}
                 </button>
               </form>
             </div>
           )}
 
-          {/* Список игроков */}
+          {/* Players List Tab */}
           {activeTab === 'players-list' && (
             <div>
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h2 className="text-2xl font-bold text-white mb-2">Список игроков</h2>
-                  <p className="text-slate-400">Всего зарегистрировано: {players.length} игроков</p>
-                </div>
-                <div className="bg-slate-700/50 rounded-lg px-4 py-2">
-                  <span className="text-slate-300 text-sm">Обновляется автоматически</span>
-                </div>
+              <div style={styles.tabHeader}>
+                <h2 style={styles.tabTitle}>Список игроков</h2>
+                <span style={styles.counter}>Всего: {players.length}</span>
               </div>
               
               {players.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-slate-400 text-lg mb-2">Пока нет зарегистрированных игроков</div>
-                  <div className="text-slate-500 text-sm">Будьте первым, кто добавит свой аккаунт!</div>
+                <div style={styles.emptyState}>
+                  <div style={styles.emptyIcon}>👤</div>
+                  <p style={styles.emptyText}>Пока нет зарегистрированных игроков</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div style={styles.grid}>
                   {players.map(player => (
-                    <div
-                      key={player.id}
-                      className="bg-slate-700/30 rounded-xl p-5 border border-slate-600/50 hover:border-slate-500/50 transition-all duration-200 group"
-                    >
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h3 className="text-lg font-semibold text-white group-hover:text-blue-300 transition-colors">
-                            {player.nickname}
-                          </h3>
-                          <span className="text-xs bg-slate-600/50 text-slate-300 px-2 py-1 rounded">
-                            {player.platform}
-                          </span>
-                        </div>
-                        <div className={`px-3 py-1 rounded-full text-xs font-semibold ${getRankColor(player.currentRank)} text-white`}>
-                          {player.currentRank}
+                    <div key={player.id} style={styles.card}>
+                      <div style={styles.cardHeader}>
+                        <h3 style={styles.playerName}>{player.nickname}</h3>
+                        <span style={styles.platform}>{player.platform}</span>
+                      </div>
+                      
+                      <div style={styles.playerInfo}>
+                        <div style={styles.infoRow}>
+                          <span>Статус:</span>
+                          <span style={styles.infoValue}>{player.status}</span>
                         </div>
                       </div>
                       
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-400 text-sm">MMR:</span>
-                          <span className="text-white font-semibold">{player.mmr}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-400 text-sm">Статус:</span>
-                          <span className="text-white font-medium text-sm">{player.status}</span>
-                        </div>
-                      </div>
+                      {player.trackerLink && (
+                        <a 
+                          href={player.trackerLink} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          style={styles.link}
+                        >
+                          Открыть профиль
+                        </a>
+                      )}
                       
-                      <div className="flex space-x-2 mt-4">
-                        {player.trackerLink && (
-                          <a 
-                            href={player.trackerLink} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex-1 bg-slate-600/50 hover:bg-slate-600 text-slate-300 text-center py-2 rounded-lg transition-colors text-sm"
-                          >
-                            Профиль
-                          </a>
-                        )}
-                        {isOrganizer && (
-                          <button
-                            onClick={() => deletePlayer(player.id)}
-                            className="flex-1 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 hover:border-red-500/50 py-2 rounded-lg transition-colors text-sm"
-                          >
-                            Удалить
-                          </button>
-                        )}
-                      </div>
+                      {isOrganizer && (
+                        <button
+                          onClick={() => deletePlayer(player.id)}
+                          style={styles.deleteButton}
+                        >
+                          Удалить
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -501,58 +342,31 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Создание команды */}
+          {/* Create Team Tab */}
           {activeTab === 'create-team' && (
-            <div className="max-w-2xl mx-auto">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-white mb-2">Создание команды</h2>
-                <p className="text-slate-400">Соберите команду для участия в турнире</p>
-              </div>
-
-              <form onSubmit={createTeam} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-slate-300 text-sm font-medium mb-3">Название команды</label>
+            <div style={styles.formContainer}>
+              <h2 style={styles.tabTitle}>Создание команды</h2>
+              <p style={styles.tabSubtitle}>Соберите команду для участия в турнире</p>
+              
+              <form onSubmit={createTeam} style={styles.form}>
+                <div style={styles.formGrid}>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Название команды</label>
                     <input
                       type="text"
                       value={teamName}
                       onChange={(e) => setTeamName(e.target.value)}
                       placeholder="Введите название команды"
-                      className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-green-500 transition-colors duration-200"
+                      style={styles.input}
                       required
                     />
                   </div>
-                  
-                  <div>
-                    <label className="block text-slate-300 text-sm font-medium mb-3">Логотип команды</label>
-                    <div className="relative">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleLogoUpload}
-                        className="hidden"
-                        id="logo-upload"
-                      />
-                      <label
-                        htmlFor="logo-upload"
-                        className="block w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-4 py-3 text-slate-300 text-center cursor-pointer hover:border-green-500 transition-colors duration-200"
-                      >
-                        {teamLogo ? 'Логотип загружен' : 'Выберите файл'}
-                      </label>
-                    </div>
-                  </div>
                 </div>
 
-                {teamLogo && (
-                  <div className="flex justify-center">
-                    <img src={teamLogo} alt="Team Logo" className="w-24 h-24 object-cover rounded-lg border-2 border-green-500/50" />
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-slate-300 text-sm font-medium mb-3">
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>
                     Выберите игроков для команды
-                    {teamPlayers.length > 0 && <span className="text-green-400 ml-2">({teamPlayers.length} выбрано)</span>}
+                    {teamPlayers.length > 0 && ` (${teamPlayers.length} выбрано)`}
                   </label>
                   <select
                     multiple
@@ -562,119 +376,81 @@ const App: React.FC = () => {
                       const selectedPlayers = players.filter(p => selectedIds.includes(p.id));
                       setTeamPlayers(selectedPlayers);
                     }}
-                    className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-green-500 transition-colors duration-200 h-32"
+                    style={{...styles.select, height: '120px'}}
                   >
                     {players.map(player => (
-                      <option key={player.id} value={player.id} className="py-2">
-                        {player.nickname} • {player.currentRank} • {player.mmr} MMR
+                      <option key={player.id} value={player.id}>
+                        {player.nickname} • {player.platform}
                       </option>
                     ))}
                   </select>
                 </div>
 
                 {teamPlayers.length > 0 && (
-                  <div className="bg-slate-700/30 rounded-lg p-4">
-                    <h4 className="text-white font-medium mb-3">Выбранные игроки:</h4>
-                    <div className="space-y-2">
-                      {teamPlayers.map(player => (
-                        <div key={player.id} className="flex items-center justify-between bg-slate-600/20 rounded-lg px-3 py-2">
-                          <span className="text-white text-sm">{player.nickname}</span>
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${getRankColor(player.currentRank)} text-white`}>
-                            {player.currentRank} ({player.mmr} MMR)
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                  <div style={styles.selectedPlayers}>
+                    <h4 style={styles.selectedTitle}>Выбранные игроки:</h4>
+                    {teamPlayers.map(player => (
+                      <div key={player.id} style={styles.selectedPlayer}>
+                        <span>{player.nickname}</span>
+                        <span>{player.platform}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
 
                 <button
                   type="submit"
                   disabled={loading || teamPlayers.length === 0}
-                  className="w-full bg-gradient-to-r from-green-600 to-cyan-600 hover:from-green-700 hover:to-cyan-700 text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+                  style={{
+                    ...styles.submitButton,
+                    ...((loading || teamPlayers.length === 0) ? styles.submitButtonDisabled : {})
+                  }}
                 >
-                  {loading ? (
-                    <span className="flex items-center justify-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Создание...
-                    </span>
-                  ) : (
-                    'Создать команду'
-                  )}
+                  {loading ? 'Создание...' : 'Создать команду'}
                 </button>
               </form>
             </div>
           )}
 
-          {/* Список команд */}
+          {/* Teams List Tab */}
           {activeTab === 'teams-list' && (
             <div>
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h2 className="text-2xl font-bold text-white mb-2">Список команд</h2>
-                  <p className="text-slate-400">Всего создано: {teams.length} команд</p>
-                </div>
-                <div className="bg-slate-700/50 rounded-lg px-4 py-2">
-                  <span className="text-slate-300 text-sm">Обновляется автоматически</span>
-                </div>
+              <div style={styles.tabHeader}>
+                <h2 style={styles.tabTitle}>Список команд</h2>
+                <span style={styles.counter}>Всего: {teams.length}</span>
               </div>
               
               {teams.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-slate-400 text-lg mb-2">Пока нет созданных команд</div>
-                  <div className="text-slate-500 text-sm">Создайте первую команду для участия в турнире!</div>
+                <div style={styles.emptyState}>
+                  <div style={styles.emptyIcon}>🏆</div>
+                  <p style={styles.emptyText}>Пока нет созданных команд</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div style={styles.grid}>
                   {teams.map(team => (
-                    <div
-                      key={team.id}
-                      className="bg-slate-700/30 rounded-xl p-5 border border-slate-600/50 hover:border-slate-500/50 transition-all duration-200 group"
-                    >
-                      <div className="flex items-center space-x-4 mb-4">
-                        {team.logo ? (
-                          <img src={team.logo} alt="Team Logo" className="w-16 h-16 object-cover rounded-lg border-2 border-green-500/50" />
-                        ) : (
-                          <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-cyan-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
-                            T
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-semibold text-white group-hover:text-green-300 transition-colors truncate">
-                            {team.name}
-                          </h3>
-                          <div className="flex items-center space-x-3 mt-1">
-                            <span className="text-cyan-400 font-semibold">{team.averageMMR} MMR</span>
-                            <span className="text-slate-400">•</span>
-                            <span className="text-slate-300 text-sm">{team.players.length} игроков</span>
-                          </div>
-                        </div>
+                    <div key={team.id} style={styles.teamCard}>
+                      <div style={styles.teamHeader}>
+                        <h3 style={styles.teamName}>{team.name}</h3>
+                        <span style={styles.teamStats}>{team.players.length} игроков</span>
                       </div>
                       
-                      <div className="space-y-3">
-                        <h4 className="text-slate-300 font-medium text-sm">Состав команды:</h4>
-                        <div className="space-y-2">
-                          {team.players.map((id: string) => {
-                            const player = players.find(p => p.id === id);
-                            return player ? (
-                              <div key={id} className="flex items-center justify-between bg-slate-600/20 rounded-lg px-3 py-2">
-                                <span className="text-white text-sm truncate">{player.nickname}</span>
-                                <span className={`px-2 py-1 rounded text-xs font-semibold ${getRankColor(player.currentRank)} text-white`}>
-                                  {player.currentRank}
-                                </span>
-                              </div>
-                            ) : null;
-                          })}
-                        </div>
+                      <div style={styles.teamPlayers}>
+                        <h4 style={styles.playersTitle}>Состав:</h4>
+                        {team.players.map((id: string) => {
+                          const player = players.find(p => p.id === id);
+                          return player ? (
+                            <div key={id} style={styles.teamPlayer}>
+                              <span>{player.nickname}</span>
+                              <span>{player.platform}</span>
+                            </div>
+                          ) : null;
+                        })}
                       </div>
                       
                       {isOrganizer && (
                         <button
                           onClick={() => deleteTeam(team.id)}
-                          className="w-full mt-4 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 hover:border-red-500/50 py-2 rounded-lg transition-colors text-sm"
+                          style={styles.deleteButton}
                         >
                           Удалить команду
                         </button>
@@ -686,9 +462,408 @@ const App: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
+      </main>
     </div>
   );
 };
+
+// Modern CSS-in-JS styles
+const styles = {
+  container: {
+    minHeight: '100vh',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
+  },
+  
+  header: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    backdropFilter: 'blur(10px)',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+    padding: '1rem 0'
+  },
+  
+  headerContent: {
+    maxWidth: '1200px',
+    margin: '0 auto',
+    padding: '0 1rem',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  
+  title: {
+    color: 'white',
+    fontSize: '2.5rem',
+    fontWeight: 'bold',
+    margin: 0,
+    background: 'linear-gradient(45deg, #fff, #e0e7ff)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent'
+  },
+  
+  subtitle: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    margin: 0,
+    fontSize: '1.1rem'
+  },
+  
+  organizerSwitch: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem'
+  },
+  
+  switchLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    cursor: 'pointer',
+    color: 'white'
+  },
+  
+  switchInput: {
+    display: 'none'
+  },
+  
+  switchSlider: {
+    width: '50px',
+    height: '24px',
+    backgroundColor: '#ccc',
+    borderRadius: '24px',
+    position: 'relative',
+    transition: 'all 0.3s'
+  },
+  
+  switchSliderActive: {
+    backgroundColor: '#10b981'
+  },
+  
+  switchText: {
+    fontSize: '0.9rem',
+    fontWeight: '500'
+  },
+  
+  nav: {
+    background: 'rgba(255, 255, 255, 0.05)',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+  },
+  
+  navContent: {
+    maxWidth: '1200px',
+    margin: '0 auto',
+    padding: '0 1rem',
+    display: 'flex',
+    gap: '0'
+  },
+  
+  navButton: {
+    padding: '1rem 2rem',
+    background: 'none',
+    border: 'none',
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: '1rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 0.3s',
+    borderBottom: '3px solid transparent'
+  },
+  
+  navButtonActive: {
+    color: 'white',
+    borderBottomColor: '#10b981',
+    background: 'rgba(255, 255, 255, 0.1)'
+  },
+  
+  main: {
+    maxWidth: '1200px',
+    margin: '0 auto',
+    padding: '2rem 1rem'
+  },
+  
+  errorMessage: {
+    background: 'rgba(239, 68, 68, 0.1)',
+    border: '1px solid rgba(239, 68, 68, 0.3)',
+    color: '#fecaca',
+    padding: '1rem',
+    borderRadius: '8px',
+    marginBottom: '2rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem'
+  },
+  
+  successMessage: {
+    background: 'rgba(16, 185, 129, 0.1)',
+    border: '1px solid rgba(16, 185, 129, 0.3)',
+    color: '#a7f3d0',
+    padding: '1rem',
+    borderRadius: '8px',
+    marginBottom: '2rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem'
+  },
+  
+  tabContent: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '12px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    padding: '2rem'
+  },
+  
+  formContainer: {
+    maxWidth: '600px',
+    margin: '0 auto'
+  },
+  
+  tabTitle: {
+    color: 'white',
+    fontSize: '2rem',
+    fontWeight: 'bold',
+    marginBottom: '0.5rem'
+  },
+  
+  tabSubtitle: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: '2rem',
+    fontSize: '1.1rem'
+  },
+  
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem'
+  },
+  
+  formGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '1rem'
+  },
+  
+  formGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem'
+  },
+  
+  label: {
+    color: 'white',
+    fontWeight: '500',
+    fontSize: '0.9rem'
+  },
+  
+  input: {
+    padding: '0.75rem 1rem',
+    background: 'rgba(255, 255, 255, 0.1)',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    borderRadius: '8px',
+    color: 'white',
+    fontSize: '1rem',
+    transition: 'all 0.3s'
+  },
+  
+  select: {
+    padding: '0.75rem 1rem',
+    background: 'rgba(255, 255, 255, 0.1)',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    borderRadius: '8px',
+    color: 'white',
+    fontSize: '1rem'
+  },
+  
+  submitButton: {
+    padding: '1rem 2rem',
+    background: 'linear-gradient(45deg, #10b981, #059669)',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '1.1rem',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.3s',
+    marginTop: '1rem'
+  },
+  
+  submitButtonDisabled: {
+    opacity: '0.6',
+    cursor: 'not-allowed'
+  },
+  
+  tabHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '2rem'
+  },
+  
+  counter: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: '1.1rem'
+  },
+  
+  emptyState: {
+    textAlign: 'center',
+    padding: '4rem 2rem',
+    color: 'rgba(255, 255, 255, 0.7)'
+  },
+  
+  emptyIcon: {
+    fontSize: '4rem',
+    marginBottom: '1rem'
+  },
+  
+  emptyText: {
+    fontSize: '1.2rem',
+    margin: 0
+  },
+  
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+    gap: '1.5rem'
+  },
+  
+  card: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    borderRadius: '12px',
+    padding: '1.5rem',
+    transition: 'all 0.3s'
+  },
+  
+  cardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: '1rem'
+  },
+  
+  playerName: {
+    color: 'white',
+    fontSize: '1.2rem',
+    fontWeight: '600',
+    margin: 0
+  },
+  
+  platform: {
+    background: 'rgba(255, 255, 255, 0.2)',
+    color: 'white',
+    padding: '0.25rem 0.5rem',
+    borderRadius: '4px',
+    fontSize: '0.8rem'
+  },
+  
+  playerInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem'
+  },
+  
+  infoRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    color: 'rgba(255, 255, 255, 0.8)'
+  },
+  
+  infoValue: {
+    color: 'white',
+    fontWeight: '500'
+  },
+  
+  link: {
+    display: 'block',
+    background: 'rgba(255, 255, 255, 0.1)',
+    color: 'white',
+    textAlign: 'center',
+    padding: '0.5rem',
+    borderRadius: '6px',
+    textDecoration: 'none',
+    marginTop: '1rem',
+    transition: 'all 0.3s'
+  },
+  
+  deleteButton: {
+    width: '100%',
+    background: 'rgba(239, 68, 68, 0.2)',
+    color: '#fca5a5',
+    border: '1px solid rgba(239, 68, 68, 0.3)',
+    padding: '0.75rem',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    marginTop: '1rem',
+    transition: 'all 0.3s'
+  },
+  
+  teamCard: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    borderRadius: '12px',
+    padding: '1.5rem',
+    transition: 'all 0.3s'
+  },
+  
+  teamHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '1rem'
+  },
+  
+  teamName: {
+    color: 'white',
+    fontSize: '1.2rem',
+    fontWeight: '600',
+    margin: 0
+  },
+  
+  teamStats: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: '0.9rem'
+  },
+  
+  teamPlayers: {
+    marginTop: '1rem'
+  },
+  
+  playersTitle: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: '1rem',
+    marginBottom: '0.5rem'
+  },
+  
+  teamPlayer: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    background: 'rgba(255, 255, 255, 0.05)',
+    padding: '0.5rem',
+    borderRadius: '4px',
+    marginBottom: '0.25rem',
+    color: 'white',
+    fontSize: '0.9rem'
+  },
+  
+  selectedPlayers: {
+    background: 'rgba(255, 255, 255, 0.05)',
+    padding: '1rem',
+    borderRadius: '8px',
+    border: '1px solid rgba(255, 255, 255, 0.1)'
+  },
+  
+  selectedTitle: {
+    color: 'white',
+    marginBottom: '0.5rem',
+    fontSize: '1rem'
+  },
+  
+  selectedPlayer: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    padding: '0.5rem 0',
+    color: 'rgba(255, 255, 255, 0.8)',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+  }
+} as const;
 
 export default App;
