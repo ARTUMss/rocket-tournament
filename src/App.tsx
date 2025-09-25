@@ -47,6 +47,7 @@ const App: React.FC = () => {
   const [isOrganizer, setIsOrganizer] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('add-player');
 
   useEffect(() => {
     const unsubscribePlayers = onSnapshot(
@@ -79,67 +80,35 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const parseProfileFromUrl = async (url: string) => {
-    try {
-      // Для CORS обхода используем proxy
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-      const response = await axios.get(proxyUrl, { timeout: 10000 });
-      
-      // Создаем временный DOM парсер вместо cheerio для простоты
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(response.data, 'text/html');
-      
-      const currentRankElement = doc.querySelector('.trn-ranking__tier .trn-ranking__tier__name');
-      const currentRank = currentRankElement?.textContent?.trim() || 'N/A';
-      
-      const mmrElement = doc.querySelector('.trn-rating__value');
-      const mmrText = mmrElement?.textContent?.trim() || '0';
-      const mmr = isNaN(Number(mmrText)) ? 0 : Number(mmrText);
-      
-      return { currentRank, highestRank: 'N/A', mmr };
-    } catch (error) {
-      console.error('Error parsing profile:', error);
-      return { currentRank: 'N/A', highestRank: 'N/A', mmr: 0 };
-    }
-  };
-
   const fetchRank = async (nickname: string, platform: string, url?: string) => {
     let currentRank = 'N/A';
-    let highestRank = 'N/A';
     let mmr = 0;
 
     try {
-      if (url) {
-        const parsed = await parseProfileFromUrl(url);
-        currentRank = parsed.currentRank;
-        highestRank = parsed.highestRank;
-        mmr = parsed.mmr;
-      } else {
-        const response = await axios.get(
-          `https://api.tracker.gg/api/v2/rocket-league/standard/profile/${platform}/${encodeURIComponent(nickname)}`, 
-          {
-            headers: { 
-              'TRN-Api-Key': '9d369df8-7267-493f-af55-df8c230ddc27',
-              'Accept': 'application/json'
-            },
-            timeout: 10000
-          }
-        );
-        
-        const segment = response.data.data.segments.find((seg: TrackerSegment) => seg.attributes.playlistId === 13);
-        mmr = segment?.stats.rating.value || 0;
-        currentRank = segment?.stats.tier.metadata.name || 'N/A';
-      }
+      const response = await axios.get(
+        `https://api.tracker.gg/api/v2/rocket-league/standard/profile/${platform}/${encodeURIComponent(nickname)}`, 
+        {
+          headers: { 
+            'TRN-Api-Key': '9d369df8-7267-493f-af55-df8c230ddc27',
+            'Accept': 'application/json'
+          },
+          timeout: 10000
+        }
+      );
+      
+      const segment = response.data.data.segments.find((seg: TrackerSegment) => seg.attributes.playlistId === 13);
+      mmr = segment?.stats.rating.value || 0;
+      currentRank = segment?.stats.tier.metadata.name || 'N/A';
     } catch (error: any) {
       console.error('Error fetching rank:', error);
       if (error.response?.status === 404) {
         setError('Профиль не найден. Проверьте никнейм и платформу.');
       } else {
-        setError('Ошибка получения данных. Попробуйте использовать ссылку на tracker.gg');
+        setError('Ошибка получения данных. Попробуйте позже.');
       }
     }
 
-    return { mmr, currentRank, highestRank };
+    return { mmr, currentRank };
   };
 
   const addPlayer = async (e: React.FormEvent) => {
@@ -148,14 +117,13 @@ const App: React.FC = () => {
     setError('');
 
     try {
-      const { mmr, currentRank, highestRank } = await fetchRank(nickname, platform, trackerLink);
+      const { mmr, currentRank } = await fetchRank(nickname, platform, trackerLink);
       
       await addDoc(collection(db, 'players'), {
         nickname: nickname.trim(),
         platform: platform,
         trackerLink: trackerLink.trim(),
         currentRank: currentRank,
-        highestRank: highestRank,
         mmr: mmr,
         status: status,
         createdAt: new Date()
@@ -204,7 +172,6 @@ const App: React.FC = () => {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Простая загрузка через FileReader для демо
       const reader = new FileReader();
       reader.onload = (event) => {
         setTeamLogo(event.target?.result as string);
@@ -248,235 +215,389 @@ const App: React.FC = () => {
     }
   };
 
+  const getRankColor = (rank: string) => {
+    const rankLower = rank.toLowerCase();
+    if (rankLower.includes('grand champion')) return 'bg-gradient-to-r from-red-500 to-pink-600';
+    if (rankLower.includes('champion')) return 'bg-gradient-to-r from-purple-500 to-purple-600';
+    if (rankLower.includes('diamond')) return 'bg-gradient-to-r from-blue-500 to-cyan-500';
+    if (rankLower.includes('platinum')) return 'bg-gradient-to-r from-green-500 to-teal-500';
+    if (rankLower.includes('gold')) return 'bg-gradient-to-r from-yellow-500 to-orange-500';
+    if (rankLower.includes('silver')) return 'bg-gradient-to-r from-gray-400 to-gray-500';
+    if (rankLower.includes('bronze')) return 'bg-gradient-to-r from-orange-800 to-orange-900';
+    return 'bg-gradient-to-r from-gray-600 to-gray-700';
+  };
+
+  // Навигационные вкладки
+  const tabs = [
+    { id: 'add-player', label: 'Добавление аккаунта' },
+    { id: 'players-list', label: 'Список игроков' },
+    { id: 'create-team', label: 'Создание команды' },
+    { id: 'teams-list', label: 'Список команд' }
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-blue-900 p-4">
-      <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-2xl p-6 w-full max-w-6xl mx-auto">
-        <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 text-center mb-8">
-          Rocket League Tournament
-        </h1>
-
-        {/* Организаторский доступ */}
-        <div className="mb-6 p-4 bg-yellow-50 rounded-lg">
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={isOrganizer}
-              onChange={(e) => setIsOrganizer(e.target.checked)}
-              className="w-4 h-4"
-            />
-            <span className="text-gray-700">Режим организатора</span>
-          </label>
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2">Rocket League Tournament</h1>
+          <p className="text-gray-300">Панель управления турниром</p>
         </div>
 
-        {/* Сообщения об ошибках */}
+        {/* Organizer Switch */}
+        <div className="flex justify-center mb-8">
+          <div className="bg-gray-800/50 backdrop-blur-lg rounded-xl p-3 border border-gray-700/50">
+            <label className="flex items-center space-x-3 cursor-pointer">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={isOrganizer}
+                  onChange={(e) => setIsOrganizer(e.target.checked)}
+                  className="sr-only"
+                />
+                <div className={`w-12 h-6 rounded-full transition-colors duration-300 ${
+                  isOrganizer ? 'bg-green-500' : 'bg-gray-600'
+                }`}></div>
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 ${
+                  isOrganizer ? 'transform translate-x-6' : 'transform translate-x-1'
+                }`}></div>
+              </div>
+              <span className="text-white font-medium text-sm">
+                {isOrganizer ? 'Режим организатора' : 'Обычный режим'}
+              </span>
+            </label>
+          </div>
+        </div>
+
+        {/* Error Message */}
         {error && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
+          <div className="mb-6 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+            <div className="text-red-200 text-sm">{error}</div>
           </div>
         )}
 
-        {/* Add Player Form */}
-        <div className="bg-gray-50 p-6 rounded-lg shadow-inner mb-6">
-          <h2 className="text-2xl font-semibold text-gray-800 mb-4">Добавить игрока</h2>
-          <form onSubmit={addPlayer} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input
-              type="text"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              placeholder="Никнейм"
-              className="border border-gray-300 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-              required
-            />
-            <select
-              value={platform}
-              onChange={(e) => setPlatform(e.target.value)}
-              className="border border-gray-300 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-            >
-              <option value="steam">Steam</option>
-              <option value="epic">Epic</option>
-              <option value="psn">PSN</option>
-              <option value="xbl">Xbox</option>
-            </select>
-            <input
-              type="url"
-              value={trackerLink}
-              onChange={(e) => setTrackerLink(e.target.value)}
-              placeholder="Ссылка на tracker.gg (опционально)"
-              className="border border-gray-300 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 col-span-2"
-            />
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="border border-gray-300 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 col-span-2"
-            >
-              <option value="Ищу команду">Ищу команду</option>
-              <option value="Капитан">Капитан</option>
-            </select>
+        {/* Navigation Tabs */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {tabs.map(tab => (
             <button
-              type="submit"
-              disabled={loading}
-              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-2 rounded-lg hover:from-blue-600 hover:to-purple-700 transition duration-300 col-span-2 disabled:opacity-50"
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                activeTab === tab.id 
+                  ? 'bg-white text-gray-900 shadow-lg' 
+                  : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700/50'
+              }`}
             >
-              {loading ? 'Добавление...' : 'Добавить игрока'}
+              {tab.label}
             </button>
-          </form>
+          ))}
         </div>
 
-        {/* Create Team Form */}
-        <div className="bg-gray-50 p-6 rounded-lg shadow-inner mb-6">
-          <h2 className="text-2xl font-semibold text-gray-800 mb-4">Создать команду</h2>
-          <form onSubmit={createTeam} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input
-              type="text"
-              value={teamName}
-              onChange={(e) => setTeamName(e.target.value)}
-              placeholder="Название команды"
-              className="border border-gray-300 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-              required
-            />
-            <div>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleLogoUpload}
-                className="hidden"
-                id="logo-upload"
-              />
-              <label
-                htmlFor="logo-upload"
-                className="block bg-gradient-to-r from-green-500 to-teal-600 text-white p-2 rounded-lg hover:from-green-600 hover:to-teal-700 transition duration-300 text-center cursor-pointer"
-              >
-                Загрузить логотип
-              </label>
-            </div>
-            {teamLogo && (
-              <div className="col-span-2">
-                <img src={teamLogo} alt="Team Logo" className="w-20 h-20 object-cover rounded" />
-              </div>
-            )}
-            <div className="col-span-2">
-              <label className="block text-gray-700 mb-2">Выберите игроков:</label>
-              <select
-                multiple
-                value={teamPlayers.map((p) => p.id)}
-                onChange={(e) => {
-                  const selectedIds = Array.from(e.target.selectedOptions, option => option.value);
-                  const selectedPlayers = players.filter(p => selectedIds.includes(p.id));
-                  setTeamPlayers(selectedPlayers);
-                }}
-                className="border border-gray-300 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 w-full h-32"
-                size={5}
-              >
-                {players.map(player => (
-                  <option key={player.id} value={player.id}>
-                    {player.nickname} ({player.currentRank}) - {player.mmr} MMR
-                  </option>
-                ))}
-              </select>
-              <small className="text-gray-500">Для выбора нескольких игроков удерживайте Ctrl</small>
-            </div>
-            <button
-              type="submit"
-              disabled={loading || teamPlayers.length === 0}
-              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-2 rounded-lg hover:from-blue-600 hover:to-purple-700 transition duration-300 col-span-2 disabled:opacity-50"
-            >
-              {loading ? 'Создание...' : 'Создать команду'}
-            </button>
-          </form>
-        </div>
-
-        {/* Players List */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mb-4">
-            Игроки ({players.length})
-          </h2>
-          {players.length === 0 ? (
-            <p className="text-gray-600 text-center p-4">Нет добавленных игроков</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {players.map(player => (
-                <div
-                  key={player.id}
-                  className="bg-white rounded-lg p-4 shadow-lg hover:shadow-xl transition-shadow duration-300 border border-gray-200"
-                >
-                  <h3 className="font-bold text-xl text-gray-800 mb-2">{player.nickname}</h3>
-                  <div className="space-y-1 text-sm text-gray-600">
-                    <p>Платформа: {player.platform}</p>
-                    <p>Текущий ранг: {player.currentRank}</p>
-                    <p>Лучший ранг: {player.highestRank}</p>
-                    <p>MMR: {player.mmr}</p>
-                    <p>Статус: {player.status}</p>
+        {/* Tab Content */}
+        <div className="bg-gray-800/30 backdrop-blur-lg rounded-xl p-6 border border-gray-700/50">
+          
+          {/* Вкладка добавления аккаунта */}
+          {activeTab === 'add-player' && (
+            <div className="max-w-2xl mx-auto">
+              <h2 className="text-2xl font-bold text-white mb-6">Добавление аккаунта</h2>
+              
+              <form onSubmit={addPlayer} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-2">Никнейм</label>
+                    <input
+                      type="text"
+                      value={nickname}
+                      onChange={(e) => setNickname(e.target.value)}
+                      placeholder="Введите ваш никнейм"
+                      className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-colors"
+                      required
+                    />
                   </div>
-                  {player.trackerLink && (
-                    <a 
-                      href={player.trackerLink} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="inline-block mt-2 text-blue-500 hover:underline text-sm"
+                  
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-2">Платформа</label>
+                    <select
+                      value={platform}
+                      onChange={(e) => setPlatform(e.target.value)}
+                      className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
                     >
-                      Профиль на tracker.gg
-                    </a>
-                  )}
-                  {isOrganizer && (
-                    <button
-                      onClick={() => deletePlayer(player.id)}
-                      className="mt-3 w-full bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition duration-300 text-sm"
-                    >
-                      Удалить
-                    </button>
-                  )}
+                      <option value="steam">Steam</option>
+                      <option value="epic">Epic Games</option>
+                      <option value="psn">PlayStation</option>
+                      <option value="xbl">Xbox</option>
+                    </select>
+                  </div>
                 </div>
-              ))}
+
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-2">
+                    Ссылка на tracker.gg (для автоматического определения ранга)
+                  </label>
+                  <input
+                    type="url"
+                    value={trackerLink}
+                    onChange={(e) => setTrackerLink(e.target.value)}
+                    placeholder="https://rocketleague.tracker.network/..."
+                    className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-colors"
+                  />
+                  <p className="text-gray-400 text-xs mt-1">
+                    Если не указать ссылку, ранг будет определен через API по никнейму
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-2">Статус в команде</label>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+                  >
+                    <option value="Ищу команду">Ищу команду</option>
+                    <option value="Капитан">Капитан (ищу команду)</option>
+                  </select>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
+                >
+                  {loading ? 'Добавление...' : 'Добавить аккаунт'}
+                </button>
+              </form>
             </div>
           )}
-        </div>
 
-        {/* Teams List */}
-        <div>
-          <h2 className="text-2xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mb-4">
-            Команды ({teams.length})
-          </h2>
-          {teams.length === 0 ? (
-            <p className="text-gray-600 text-center p-4">Нет созданных команд</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {teams.map(team => (
-                <div
-                  key={team.id}
-                  className="bg-white rounded-lg p-4 shadow-lg hover:shadow-xl transition-shadow duration-300 border border-gray-200"
-                >
-                  <div className="flex items-center space-x-3 mb-3">
-                    {team.logo && (
-                      <img src={team.logo} alt="Team Logo" className="w-12 h-12 object-cover rounded" />
-                    )}
-                    <h3 className="font-bold text-xl text-gray-800">{team.name}</h3>
+          {/* Вкладка списка игроков */}
+          {activeTab === 'players-list' && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-white">Список игроков</h2>
+                <span className="text-gray-300">Всего: {players.length}</span>
+              </div>
+              
+              {players.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-400 text-lg">Пока нет добавленных игроков</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {players.map(player => (
+                    <div
+                      key={player.id}
+                      className="bg-gray-700/50 rounded-lg p-4 border border-gray-600/50 hover:border-purple-500/50 transition-all duration-200"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <h3 className="text-lg font-bold text-white truncate">{player.nickname}</h3>
+                        <span className="text-xs bg-gray-600 px-2 py-1 rounded text-gray-300">
+                          {player.platform}
+                        </span>
+                      </div>
+                      
+                      <div className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getRankColor(player.currentRank)} text-white mb-3`}>
+                        {player.currentRank}
+                      </div>
+                      
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between text-gray-300">
+                          <span>MMR:</span>
+                          <span className="font-semibold text-white">{player.mmr}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-300">
+                          <span>Статус:</span>
+                          <span className="font-semibold text-white">{player.status}</span>
+                        </div>
+                      </div>
+                      
+                      {player.trackerLink && (
+                        <a 
+                          href={player.trackerLink} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-block mt-3 text-blue-400 hover:text-blue-300 text-xs font-medium"
+                        >
+                          Открыть профиль на tracker.gg
+                        </a>
+                      )}
+                      
+                      {isOrganizer && (
+                        <button
+                          onClick={() => deletePlayer(player.id)}
+                          className="w-full mt-3 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg transition-colors text-sm"
+                        >
+                          Удалить
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Вкладка создания команды */}
+          {activeTab === 'create-team' && (
+            <div className="max-w-2xl mx-auto">
+              <h2 className="text-2xl font-bold text-white mb-6">Создание команды</h2>
+              
+              <form onSubmit={createTeam} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-2">Название команды</label>
+                    <input
+                      type="text"
+                      value={teamName}
+                      onChange={(e) => setTeamName(e.target.value)}
+                      placeholder="Введите название команды"
+                      className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-cyan-500 transition-colors"
+                      required
+                    />
                   </div>
-                  <div className="space-y-2 text-sm">
-                    <p className="text-gray-600">Средний MMR: <strong>{team.averageMMR}</strong></p>
-                    <div>
-                      <p className="text-gray-700 font-medium mb-1">Игроки:</p>
-                      <ul className="list-disc list-inside space-y-1">
-                        {team.players.map((id: string) => {
-                          const player = players.find(p => p.id === id);
-                          return player ? (
-                            <li key={id} className="text-gray-600 text-sm">
-                              {player.nickname} ({player.currentRank})
-                            </li>
-                          ) : null;
-                        })}
-                      </ul>
+                  
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-2">Логотип команды</label>
+                    <div className="relative">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                        id="logo-upload"
+                      />
+                      <label
+                        htmlFor="logo-upload"
+                        className="block w-full bg-gray-700/50 border border-gray-600/50 rounded-lg px-4 py-3 text-white text-center cursor-pointer hover:border-cyan-500 transition-colors"
+                      >
+                        {teamLogo ? 'Логотип загружен' : 'Выберите файл'}
+                      </label>
                     </div>
                   </div>
-                  {isOrganizer && (
-                    <button
-                      onClick={() => deleteTeam(team.id)}
-                      className="mt-3 w-full bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition duration-300 text-sm"
-                    >
-                      Удалить команду
-                    </button>
-                  )}
                 </div>
-              ))}
+
+                {teamLogo && (
+                  <div className="flex justify-center">
+                    <img src={teamLogo} alt="Team Logo" className="w-20 h-20 object-cover rounded-lg border border-cyan-500/50" />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-2">
+                    Выберите игроков для команды ({teamPlayers.length} выбрано)
+                  </label>
+                  <select
+                    multiple
+                    value={teamPlayers.map((p) => p.id)}
+                    onChange={(e) => {
+                      const selectedIds = Array.from(e.target.selectedOptions, option => option.value);
+                      const selectedPlayers = players.filter(p => selectedIds.includes(p.id));
+                      setTeamPlayers(selectedPlayers);
+                    }}
+                    className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-500 transition-colors h-32"
+                    size={4}
+                  >
+                    {players.map(player => (
+                      <option key={player.id} value={player.id} className="py-1">
+                        {player.nickname} • {player.currentRank} • {player.mmr} MMR
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-gray-400 text-xs mt-1">
+                    Для выбора нескольких игроков удерживайте Ctrl (Cmd на Mac)
+                  </p>
+                </div>
+
+                {teamPlayers.length > 0 && (
+                  <div className="bg-gray-700/30 rounded-lg p-3">
+                    <h4 className="text-white font-medium mb-2">Выбранные игроки:</h4>
+                    <div className="space-y-1">
+                      {teamPlayers.map(player => (
+                        <div key={player.id} className="flex justify-between text-sm text-gray-300">
+                          <span>{player.nickname}</span>
+                          <span>{player.currentRank} ({player.mmr} MMR)</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading || teamPlayers.length === 0}
+                  className="w-full bg-gradient-to-r from-green-600 to-cyan-600 hover:from-green-700 hover:to-cyan-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
+                >
+                  {loading ? 'Создание...' : 'Создать команду'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* Вкладка списка команд */}
+          {activeTab === 'teams-list' && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-white">Список команд</h2>
+                <span className="text-gray-300">Всего: {teams.length}</span>
+              </div>
+              
+              {teams.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-400 text-lg">Пока нет созданных команд</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {teams.map(team => (
+                    <div
+                      key={team.id}
+                      className="bg-gray-700/50 rounded-lg p-4 border border-gray-600/50 hover:border-cyan-500/50 transition-all duration-200"
+                    >
+                      <div className="flex items-center space-x-3 mb-4">
+                        {team.logo ? (
+                          <img src={team.logo} alt="Team Logo" className="w-12 h-12 object-cover rounded-lg border border-cyan-500/50" />
+                        ) : (
+                          <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
+                            T
+                          </div>
+                        )}
+                        <div>
+                          <h3 className="text-lg font-bold text-white">{team.name}</h3>
+                          <div className="flex items-center space-x-2 text-sm text-gray-300">
+                            <span>{team.averageMMR} MMR</span>
+                            <span>•</span>
+                            <span>{team.players.length} игроков</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h4 className="text-white font-medium text-sm">Состав:</h4>
+                        <div className="space-y-1">
+                          {team.players.map((id: string) => {
+                            const player = players.find(p => p.id === id);
+                            return player ? (
+                              <div key={id} className="flex justify-between items-center bg-gray-600/30 rounded px-2 py-1">
+                                <span className="text-white text-sm truncate">{player.nickname}</span>
+                                <span className={`px-2 py-1 rounded text-xs font-semibold ${getRankColor(player.currentRank)} text-white`}>
+                                  {player.currentRank}
+                                </span>
+                              </div>
+                            ) : null;
+                          })}
+                        </div>
+                      </div>
+                      
+                      {isOrganizer && (
+                        <button
+                          onClick={() => deleteTeam(team.id)}
+                          className="w-full mt-3 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg transition-colors text-sm"
+                        >
+                          Удалить команду
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
