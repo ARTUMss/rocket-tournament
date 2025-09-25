@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 
 // Firebase Config - используем переменные окружения
 const firebaseConfig = {
@@ -69,6 +69,9 @@ const App: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [activeTab, setActiveTab] = useState('add-player');
   const [playerData, setPlayerData] = useState<any>(null);
+  const [showRules, setShowRules] = useState(false);
+  const [tournamentRules, setTournamentRules] = useState('Tournament Rules:\n\n1. Team Composition: 3 players per team\n2. Format: Double elimination bracket\n3. Match Rules: Best of 3 for early rounds, Best of 5 for finals\n4. Server Selection: EU servers preferred\n5. Schedule: Matches must be completed within designated timeframes\n\nPlease ensure fair play and good sportsmanship throughout the tournament.');
+  const [editingRules, setEditingRules] = useState(false);
 
   useEffect(() => {
     const unsubscribePlayers = onSnapshot(collection(db, 'players'), (snapshot) => {
@@ -81,11 +84,38 @@ const App: React.FC = () => {
       setTeams(teamsData);
     });
 
+    // Загружаем правила турнира из Firebase
+    loadTournamentRules();
+
     return () => {
       unsubscribePlayers();
       unsubscribeTeams();
     };
   }, []);
+
+  const loadTournamentRules = async () => {
+    try {
+      const rulesDoc = await getDoc(doc(db, 'settings', 'tournamentRules'));
+      if (rulesDoc.exists()) {
+        setTournamentRules(rulesDoc.data().rules);
+      }
+    } catch (error) {
+      console.error('Error loading tournament rules:', error);
+    }
+  };
+
+  const saveTournamentRules = async () => {
+    try {
+      await setDoc(doc(db, 'settings', 'tournamentRules'), {
+        rules: tournamentRules,
+        lastUpdated: new Date()
+      });
+      setEditingRules(false);
+      setSuccessMessage('Tournament rules updated successfully!');
+    } catch (error) {
+      setError('Error saving tournament rules');
+    }
+  };
 
   // Функция для парсинга данных из tracker.gg
   const parseTrackerData = async (url: string) => {
@@ -119,7 +149,7 @@ const App: React.FC = () => {
 
   const fetchPlayerData = async () => {
     if (!nickname || !trackerLink) {
-      setError('Заполните никнейм и ссылку на tracker.gg');
+      setError('Fill in nickname and tracker.gg link');
       return;
     }
     
@@ -135,7 +165,7 @@ const App: React.FC = () => {
         rankImage: data.rankImage
       });
     } catch (error) {
-      setError('Ошибка получения данных с tracker.gg');
+      setError('Error getting data from tracker.gg');
     } finally {
       setLoading(false);
     }
@@ -145,7 +175,7 @@ const App: React.FC = () => {
     e.preventDefault();
     
     if (!playerData) {
-      setError('Сначала получите данные игрока');
+      setError('First get player data');
       return;
     }
 
@@ -168,9 +198,9 @@ const App: React.FC = () => {
       setNickname('');
       setTrackerLink('');
       setPlayerData(null);
-      setSuccessMessage('Игрок успешно добавлен!');
+      setSuccessMessage('Player added successfully!');
     } catch (error) {
-      setError('Ошибка добавления игрока');
+      setError('Error adding player');
     } finally {
       setLoading(false);
     }
@@ -178,29 +208,29 @@ const App: React.FC = () => {
 
   const deletePlayer = async (playerId: string) => {
     if (!isOrganizer) {
-      setError('Только организаторы могут удалять игроков!');
+      setError('Only organizers can delete players!');
       return;
     }
 
     try {
       await deleteDoc(doc(db, 'players', playerId));
-      setSuccessMessage('Игрок успешно удален!');
+      setSuccessMessage('Player deleted successfully!');
     } catch (error) {
-      setError('Ошибка удаления игрока');
+      setError('Error deleting player');
     }
   };
 
   const deleteTeam = async (teamId: string) => {
     if (!isOrganizer) {
-      setError('Только организаторы могут удалять команды!');
+      setError('Only organizers can delete teams!');
       return;
     }
 
     try {
       await deleteDoc(doc(db, 'teams', teamId));
-      setSuccessMessage('Команда успешно удалена!');
+      setSuccessMessage('Team deleted successfully!');
     } catch (error) {
-      setError('Ошибка удаления команды');
+      setError('Error deleting team');
     }
   };
 
@@ -208,7 +238,7 @@ const App: React.FC = () => {
     e.preventDefault();
     
     if (teamPlayers.length === 0) {
-      setError('Выберите хотя бы одного игрока');
+      setError('Select at least one player');
       return;
     }
 
@@ -232,35 +262,91 @@ const App: React.FC = () => {
       setTeamName('');
       setTeamLogo('');
       setTeamPlayers([]);
-      setSuccessMessage('Команда успешно создана!');
+      setSuccessMessage('Team created successfully!');
     } catch (error) {
-      setError('Ошибка создания команды');
+      setError('Error creating team');
     } finally {
       setLoading(false);
     }
   };
 
   const tabs = [
-    { id: 'add-player', label: 'Добавление аккаунта' },
-    { id: 'players-list', label: 'Список игроков' },
-    { id: 'create-team', label: 'Создание команды' },
-    { id: 'teams-list', label: 'Список команд' }
+    { id: 'add-player', label: 'Add Account' },
+    { id: 'players-list', label: 'Players List' },
+    { id: 'create-team', label: 'Create Team' },
+    { id: 'teams-list', label: 'Teams List' }
   ];
 
   return (
     <div style={styles.container}>
+      {/* Rules Modal */}
+      {showRules && (
+        <div style={styles.modalOverlay} onClick={() => setShowRules(false)}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>Tournament Rules</h2>
+              <button 
+                style={styles.closeButton}
+                onClick={() => setShowRules(false)}
+              >
+                ×
+              </button>
+            </div>
+            
+            {isOrganizer && editingRules ? (
+              <div>
+                <textarea
+                  value={tournamentRules}
+                  onChange={(e) => setTournamentRules(e.target.value)}
+                  style={styles.rulesTextarea}
+                  rows={15}
+                />
+                <div style={styles.modalActions}>
+                  <button 
+                    style={styles.saveButton}
+                    onClick={saveTournamentRules}
+                  >
+                    Save Rules
+                  </button>
+                  <button 
+                    style={styles.cancelButton}
+                    onClick={() => setEditingRules(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <pre style={styles.rulesText}>{tournamentRules}</pre>
+                {isOrganizer && (
+                  <button 
+                    style={styles.editButton}
+                    onClick={() => setEditingRules(true)}
+                  >
+                    Edit Rules
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header style={styles.header}>
         <div style={styles.headerContent}>
           <div>
             <h1 style={styles.title}>Rocket League Tournament</h1>
-            <p style={styles.subtitle}>Панель управления турниром</p>
+            <p style={styles.subtitle}>Tournament Management Panel</p>
           </div>
           
           {/* Кнопка правил турнира */}
-          <button style={styles.rulesButton}>
-            <span style={styles.rulesIcon}>📋</span>
-            Правила турнира
+          <button 
+            style={styles.rulesButton}
+            onClick={() => setShowRules(true)}
+          >
+            Tournament Rules
           </button>
         </div>
         
@@ -277,7 +363,7 @@ const App: React.FC = () => {
               ...(isOrganizer ? styles.switchSliderActive : {})
             }}></span>
             <span style={styles.switchText}>
-              {isOrganizer ? 'Организатор' : 'Игрок'}
+              {isOrganizer ? 'Organizer' : 'Player'}
             </span>
           </label>
         </div>
@@ -324,25 +410,25 @@ const App: React.FC = () => {
           {/* Add Player Tab */}
           {activeTab === 'add-player' && (
             <div style={styles.formContainer}>
-              <h2 style={styles.tabTitle}>Добавление аккаунта</h2>
-              <p style={styles.tabSubtitle}>Зарегистрируйте свой аккаунт для участия в турнире</p>
+              <h2 style={styles.tabTitle}>Add Account</h2>
+              <p style={styles.tabSubtitle}>Register your account for tournament participation</p>
               
               <form onSubmit={addPlayer} style={styles.form}>
                 <div style={styles.formGrid}>
                   <div style={styles.formGroup}>
-                    <label style={styles.label}>Никнейм *</label>
+                    <label style={styles.label}>Nickname *</label>
                     <input
                       type="text"
                       value={nickname}
                       onChange={(e) => setNickname(e.target.value)}
-                      placeholder="Введите ваш никнейм в игре"
+                      placeholder="Enter your in-game nickname"
                       style={styles.input}
                       required
                     />
                   </div>
                   
                   <div style={styles.formGroup}>
-                    <label style={styles.label}>Платформа *</label>
+                    <label style={styles.label}>Platform *</label>
                     <div style={styles.selectContainer}>
                       <select
                         value={platform}
@@ -358,17 +444,17 @@ const App: React.FC = () => {
                 </div>
 
                 <div style={styles.formGroup}>
-                  <label style={styles.label}>Ссылка на tracker.gg *</label>
+                  <label style={styles.label}>Tracker.gg Link *</label>
                   <input
                     type="url"
                     value={trackerLink}
                     onChange={(e) => setTrackerLink(e.target.value)}
-                    placeholder="https://rocketleague.tracker.network/rocket-league/profile/steam/YourNickname/overview"
+                    placeholder="Paste your tracker.gg profile URL"
                     style={styles.input}
                     required
                   />
                   <p style={styles.helperText}>
-                    Пример: https://rocketleague.tracker.network/rocket-league/profile/steam/YourNickname/overview
+                    Copy your profile URL from tracker.gg website
                   </p>
                 </div>
 
@@ -381,13 +467,13 @@ const App: React.FC = () => {
                     ...((!nickname || !trackerLink || loading) && styles.buttonDisabled)
                   }}
                 >
-                  {loading ? 'Получение данных...' : 'Получить данные игрока'}
+                  {loading ? 'Getting Data...' : 'Get Player Data'}
                 </button>
 
                 {/* Player Data Preview */}
                 {playerData && (
                   <div style={styles.playerPreview}>
-                    <h3 style={styles.previewTitle}>Данные игрока:</h3>
+                    <h3 style={styles.previewTitle}>Player Data:</h3>
                     <div style={styles.previewContent}>
                       <div style={styles.rankInfo}>
                         <img 
@@ -404,23 +490,23 @@ const App: React.FC = () => {
                         </div>
                       </div>
                       <div style={styles.playerInfo}>
-                        <div>Никнейм: <strong>{playerData.nickname}</strong></div>
-                        <div>Платформа: <strong>{playerData.platform}</strong></div>
+                        <div>Nickname: <strong>{playerData.nickname}</strong></div>
+                        <div>Platform: <strong>{playerData.platform}</strong></div>
                       </div>
                     </div>
                   </div>
                 )}
 
                 <div style={styles.formGroup}>
-                  <label style={styles.label}>Статус в команде *</label>
+                  <label style={styles.label}>Team Status *</label>
                   <div style={styles.selectContainer}>
                     <select
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
                       style={styles.select}
                     >
-                      <option value="Ищу команду">Ищу команду</option>
-                      <option value="Капитан">Капитан</option> {/* Убрано "(ищу команду)" */}
+                      <option value="Ищу команду">Looking for Team</option>
+                      <option value="Капитан">Captain</option>
                     </select>
                     <span style={styles.selectArrow}>▼</span>
                   </div>
@@ -434,7 +520,7 @@ const App: React.FC = () => {
                     ...((loading || !playerData) && styles.buttonDisabled)
                   }}
                 >
-                  {loading ? 'Добавление...' : 'Добавить аккаунт'}
+                  {loading ? 'Adding...' : 'Add Account'}
                 </button>
               </form>
             </div>
@@ -444,14 +530,14 @@ const App: React.FC = () => {
           {activeTab === 'players-list' && (
             <div>
               <div style={styles.tabHeader}>
-                <h2 style={styles.tabTitle}>Список игроков</h2>
-                <span style={styles.counter}>Всего: {players.length}</span>
+                <h2 style={styles.tabTitle}>Players List</h2>
+                <span style={styles.counter}>Total: {players.length}</span>
               </div>
               
               {players.length === 0 ? (
                 <div style={styles.emptyState}>
                   <div style={styles.emptyIcon}>👤</div>
-                  <p style={styles.emptyText}>Пока нет зарегистрированных игроков</p>
+                  <p style={styles.emptyText}>No registered players yet</p>
                 </div>
               ) : (
                 <div style={styles.grid}>
@@ -476,7 +562,7 @@ const App: React.FC = () => {
                       
                       <div style={styles.playerStats}>
                         <div style={styles.stat}>
-                          <span style={styles.statLabel}>Ранг:</span>
+                          <span style={styles.statLabel}>Rank:</span>
                           <span style={styles.statValue}>{player.rank}</span>
                         </div>
                         <div style={styles.stat}>
@@ -484,7 +570,7 @@ const App: React.FC = () => {
                           <span style={styles.statValue}>{player.mmr}</span>
                         </div>
                         <div style={styles.stat}>
-                          <span style={styles.statLabel}>Статус:</span>
+                          <span style={styles.statLabel}>Status:</span>
                           <span style={styles.statValue}>{player.status}</span>
                         </div>
                       </div>
@@ -497,7 +583,7 @@ const App: React.FC = () => {
                             rel="noopener noreferrer"
                             style={styles.profileLink}
                           >
-                            Открыть профиль
+                            Open Profile
                           </a>
                         )}
                         {isOrganizer && (
@@ -505,7 +591,7 @@ const App: React.FC = () => {
                             onClick={() => deletePlayer(player.id)}
                             style={styles.deleteBtn}
                           >
-                            Удалить
+                            Delete
                           </button>
                         )}
                       </div>
@@ -519,17 +605,17 @@ const App: React.FC = () => {
           {/* Create Team Tab */}
           {activeTab === 'create-team' && (
             <div style={styles.formContainer}>
-              <h2 style={styles.tabTitle}>Создание команды</h2>
-              <p style={styles.tabSubtitle}>Соберите команду для участия в турнире</p>
+              <h2 style={styles.tabTitle}>Create Team</h2>
+              <p style={styles.tabSubtitle}>Assemble your team for tournament participation</p>
               
               <form onSubmit={createTeam} style={styles.form}>
                 <div style={styles.formGroup}>
-                  <label style={styles.label}>Название команды *</label>
+                  <label style={styles.label}>Team Name *</label>
                   <input
                     type="text"
                     value={teamName}
                     onChange={(e) => setTeamName(e.target.value)}
-                    placeholder="Введите название команды"
+                    placeholder="Enter team name"
                     style={styles.input}
                     required
                   />
@@ -537,8 +623,8 @@ const App: React.FC = () => {
 
                 <div style={styles.formGroup}>
                   <label style={styles.label}>
-                    Выберите игроков для команды *
-                    {teamPlayers.length > 0 && <span style={styles.selectedCount}> ({teamPlayers.length} выбрано)</span>}
+                    Select Players for Team *
+                    {teamPlayers.length > 0 && <span style={styles.selectedCount}> ({teamPlayers.length} selected)</span>}
                   </label>
                   <select
                     multiple
@@ -557,12 +643,12 @@ const App: React.FC = () => {
                       </option>
                     ))}
                   </select>
-                  <p style={styles.helperText}>Для выбора нескольких игроков удерживайте Ctrl (Cmd на Mac)</p>
+                  <p style={styles.helperText}>Hold Ctrl (Cmd on Mac) to select multiple players</p>
                 </div>
 
                 {teamPlayers.length > 0 && (
                   <div style={styles.selectedPlayers}>
-                    <h4 style={styles.selectedTitle}>Выбранные игроки:</h4>
+                    <h4 style={styles.selectedTitle}>Selected Players:</h4>
                     {teamPlayers.map(player => (
                       <div key={player.id} style={styles.selectedPlayer}>
                         <span>{player.nickname}</span>
@@ -570,7 +656,7 @@ const App: React.FC = () => {
                       </div>
                     ))}
                     <div style={styles.averageStats}>
-                      Средний MMR: {Math.round(teamPlayers.reduce((sum, p) => sum + (parseInt(p.mmr) || 0), 0) / teamPlayers.length)}
+                      Average MMR: {Math.round(teamPlayers.reduce((sum, p) => sum + (parseInt(p.mmr) || 0), 0) / teamPlayers.length)}
                     </div>
                   </div>
                 )}
@@ -583,7 +669,7 @@ const App: React.FC = () => {
                     ...((loading || teamPlayers.length === 0) && styles.buttonDisabled)
                   }}
                 >
-                  {loading ? 'Создание...' : 'Создать команду'}
+                  {loading ? 'Creating...' : 'Create Team'}
                 </button>
               </form>
             </div>
@@ -593,14 +679,14 @@ const App: React.FC = () => {
           {activeTab === 'teams-list' && (
             <div>
               <div style={styles.tabHeader}>
-                <h2 style={styles.tabTitle}>Список команд</h2>
-                <span style={styles.counter}>Всего: {teams.length}</span>
+                <h2 style={styles.tabTitle}>Teams List</h2>
+                <span style={styles.counter}>Total: {teams.length}</span>
               </div>
               
               {teams.length === 0 ? (
                 <div style={styles.emptyState}>
                   <div style={styles.emptyIcon}>🏆</div>
-                  <p style={styles.emptyText}>Пока нет созданных команд</p>
+                  <p style={styles.emptyText}>No teams created yet</p>
                 </div>
               ) : (
                 <div style={styles.grid}>
@@ -609,13 +695,13 @@ const App: React.FC = () => {
                       <div style={styles.teamHeader}>
                         <h3 style={styles.teamName}>{team.name}</h3>
                         <div style={styles.teamInfo}>
-                          <span>{team.players.length} игроков</span>
+                          <span>{team.players.length} players</span>
                           <span>Avg MMR: {team.averageMMR}</span>
                         </div>
                       </div>
                       
                       <div style={styles.teamPlayers}>
-                        <h4 style={styles.playersTitle}>Состав команды:</h4>
+                        <h4 style={styles.playersTitle}>Team Roster:</h4>
                         {team.players.map((id: string) => {
                           const player = players.find(p => p.id === id);
                           return player ? (
@@ -645,7 +731,7 @@ const App: React.FC = () => {
                           onClick={() => deleteTeam(team.id)}
                           style={styles.deleteBtn}
                         >
-                          Удалить команду
+                          Delete Team
                         </button>
                       )}
                     </div>
@@ -701,18 +787,12 @@ const styles = {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.3)',
     color: 'white',
-    padding: '0.5rem 1rem',
-    borderRadius: '6px',
+    padding: '0.75rem 1.5rem',
+    borderRadius: '8px',
     cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    fontSize: '0.9rem',
+    fontSize: '1rem',
+    fontWeight: '500',
     transition: 'all 0.3s'
-  },
-  
-  rulesIcon: {
-    fontSize: '1.2rem'
   },
   
   organizerSwitch: {
@@ -1226,6 +1306,121 @@ const styles = {
     color: '#10b981',
     fontWeight: '600',
     textAlign: 'center'
+  },
+  
+  // Modal Styles
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+    animation: 'fadeIn 0.3s ease-in-out'
+  },
+  
+  modalContent: {
+    background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+    borderRadius: '12px',
+    padding: '2rem',
+    maxWidth: '600px',
+    width: '90%',
+    maxHeight: '80vh',
+    overflow: 'auto',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    animation: 'slideUp 0.3s ease-out'
+  },
+  
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '1.5rem'
+  },
+  
+  modalTitle: {
+    color: 'white',
+    fontSize: '1.5rem',
+    fontWeight: 'bold',
+    margin: 0
+  },
+  
+  closeButton: {
+    background: 'none',
+    border: 'none',
+    color: 'white',
+    fontSize: '2rem',
+    cursor: 'pointer',
+    padding: 0,
+    width: '30px',
+    height: '30px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  
+  rulesText: {
+    color: 'white',
+    fontSize: '0.9rem',
+    lineHeight: '1.5',
+    whiteSpace: 'pre-wrap',
+    fontFamily: 'inherit'
+  },
+  
+  rulesTextarea: {
+    width: '100%',
+    background: 'rgba(0, 0, 0, 0.3)',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    borderRadius: '8px',
+    color: 'white',
+    padding: '1rem',
+    fontSize: '0.9rem',
+    lineHeight: '1.5',
+    fontFamily: 'inherit',
+    resize: 'vertical',
+    minHeight: '200px'
+  },
+  
+  modalActions: {
+    display: 'flex',
+    gap: '1rem',
+    justifyContent: 'flex-end',
+    marginTop: '1rem'
+  },
+  
+  saveButton: {
+    background: '#10b981',
+    color: 'white',
+    border: 'none',
+    padding: '0.5rem 1rem',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: '500'
+  },
+  
+  cancelButton: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    color: 'white',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    padding: '0.5rem 1rem',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: '500'
+  },
+  
+  editButton: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    color: 'white',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    padding: '0.5rem 1rem',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: '500',
+    marginTop: '1rem'
   }
 } as const;
 
