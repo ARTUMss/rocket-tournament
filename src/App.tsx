@@ -53,11 +53,11 @@ const getRankImage = (rank: string): string => {
   return rankImages[rank] || rankImages['Unranked'];
 };
 
-// Список организаторов (можно вынести в Firebase)
-const ORGANIZERS = [
-  'admin@tournament.com',
-  'organizer@tournament.com',
-  'your-email@domain.com' // Добавьте сюда email организатора
+// Уникальные коды для организаторов (запомните эти коды!)
+const ORGANIZER_CODES = [
+  'RL2024-ORG-7B9X2K',  // Код 1
+  'TOURNEY-MASTER-5F8P', // Код 2  
+  'CHAMP-ACCESS-3R6L9Z'  // Код 3
 ];
 
 const App: React.FC = () => {
@@ -81,17 +81,22 @@ const App: React.FC = () => {
   const [editingRules, setEditingRules] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [organizerCode, setOrganizerCode] = useState('');
+  const [showOrganizerCodeInput, setShowOrganizerCodeInput] = useState(false);
 
   useEffect(() => {
-    // Проверяем авторизацию пользователя (заглушка - в реальном приложении используйте Firebase Auth)
+    // Проверяем авторизацию пользователя
     const checkAuth = () => {
-      // В реальном приложении здесь будет проверка через Firebase Auth
       const savedEmail = localStorage.getItem('tournament_user_email');
+      const savedOrganizerStatus = localStorage.getItem('tournament_organizer');
+      
       if (savedEmail) {
         setUserEmail(savedEmail);
         setIsAuthenticated(true);
-        // Автоматически определяем организатора по email
-        setIsOrganizer(ORGANIZERS.includes(savedEmail));
+        
+        if (savedOrganizerStatus === 'true') {
+          setIsOrganizer(true);
+        }
       }
     };
 
@@ -118,15 +123,29 @@ const App: React.FC = () => {
   const handleLogin = (email: string) => {
     setUserEmail(email);
     setIsAuthenticated(true);
-    setIsOrganizer(ORGANIZERS.includes(email));
     localStorage.setItem('tournament_user_email', email);
+  };
+
+  const handleOrganizerCodeSubmit = () => {
+    if (ORGANIZER_CODES.includes(organizerCode)) {
+      setIsOrganizer(true);
+      localStorage.setItem('tournament_organizer', 'true');
+      setSuccessMessage('Код организатора принят! Теперь у вас есть права организатора.');
+      setOrganizerCode('');
+      setShowOrganizerCodeInput(false);
+    } else {
+      setError('Неверный код организатора');
+    }
   };
 
   const handleLogout = () => {
     setUserEmail('');
     setIsAuthenticated(false);
     setIsOrganizer(false);
+    setOrganizerCode('');
+    setShowOrganizerCodeInput(false);
     localStorage.removeItem('tournament_user_email');
+    localStorage.removeItem('tournament_organizer');
   };
 
   const loadTournamentRules = async () => {
@@ -226,7 +245,7 @@ const App: React.FC = () => {
         rankImage: playerData.rankImage,
         status: status,
         createdAt: new Date(),
-        userEmail: userEmail // Сохраняем email пользователя
+        userEmail: userEmail
       });
       
       setNickname('');
@@ -318,7 +337,7 @@ const App: React.FC = () => {
     <div style={styles.loginContainer}>
       <div style={styles.loginForm}>
         <h2 style={styles.loginTitle}>Вход в систему</h2>
-        <p style={styles.loginSubtitle}>Введите ваш email для продолжения</p>
+        <p style={styles.loginSubtitle}>Введите ваш email для участия в турнире</p>
         
         <div style={styles.formGroup}>
           <input
@@ -338,16 +357,41 @@ const App: React.FC = () => {
             ...(!userEmail && styles.buttonDisabled)
           }}
         >
-          Войти
+          Войти как участник
         </button>
 
-        <div style={styles.organizerHint}>
-          <p>Для доступа к функциям организатора используйте email:</p>
-          <ul style={styles.organizerList}>
-            {ORGANIZERS.map((email, index) => (
-              <li key={index} style={styles.organizerEmail}>{email}</li>
-            ))}
-          </ul>
+        <div style={styles.organizerSection}>
+          <button
+            style={styles.organizerToggle}
+            onClick={() => setShowOrganizerCodeInput(!showOrganizerCodeInput)}
+          >
+            {showOrganizerCodeInput ? 'Отмена' : 'Я организатор'}
+          </button>
+
+          {showOrganizerCodeInput && (
+            <div style={styles.organizerCodeContainer}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Код организатора</label>
+                <input
+                  type="password"
+                  value={organizerCode}
+                  onChange={(e) => setOrganizerCode(e.target.value)}
+                  placeholder="Введите секретный код"
+                  style={styles.input}
+                />
+              </div>
+              <button
+                onClick={handleOrganizerCodeSubmit}
+                disabled={!organizerCode}
+                style={{
+                  ...styles.organizerCodeButton,
+                  ...(!organizerCode && styles.buttonDisabled)
+                }}
+              >
+                Подтвердить код
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -884,22 +928,43 @@ const styles = {
     marginBottom: '2rem'
   },
   
-  organizerHint: {
+  organizerSection: {
     marginTop: '2rem',
-    padding: '1rem',
+    borderTop: '1px solid rgba(255, 255, 255, 0.2)',
+    paddingTop: '2rem'
+  },
+  
+  organizerToggle: {
     background: 'rgba(255, 255, 255, 0.1)',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    color: 'white',
+    padding: '0.75rem 1.5rem',
     borderRadius: '8px',
-    color: 'rgba(255, 255, 255, 0.8)'
+    cursor: 'pointer',
+    width: '100%',
+    fontSize: '1rem',
+    fontWeight: '500',
+    transition: 'all 0.3s'
   },
   
-  organizerList: {
-    margin: '0.5rem 0',
-    paddingLeft: '1.5rem'
+  organizerCodeContainer: {
+    marginTop: '1rem',
+    padding: '1rem',
+    background: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: '8px'
   },
   
-  organizerEmail: {
-    fontSize: '0.8rem',
-    marginBottom: '0.25rem'
+  organizerCodeButton: {
+    background: 'linear-gradient(45deg, #10b981, #059669)',
+    color: 'white',
+    border: 'none',
+    padding: '0.75rem 1.5rem',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    width: '100%',
+    fontSize: '1rem',
+    fontWeight: '500',
+    marginTop: '1rem'
   },
   
   header: {
