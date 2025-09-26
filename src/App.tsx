@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 
-// Firebase Config - используем переменные окружения
+// Firebase Config
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "your-firebase-api-key",
   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "rocket-a799b.firebaseapp.com",
@@ -17,7 +16,44 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Rank images mapping with type safety
+// Интерфейсы для типов
+interface Player {
+  id: string;
+  nickname: string;
+  platform: string;
+  trackerLink: string;
+  mmr: string;
+  rank: string;
+  rankImage: string;
+  status: string;
+  createdAt: Date;
+  userEmail: string;
+}
+
+interface Team {
+  id: string;
+  name: string;
+  logo: string;
+  players: string[];
+  captain: string;
+  averageMMR: number;
+  createdAt: Date;
+  createdBy: string;
+}
+
+interface Application {
+  id: string;
+  teamId: string;
+  playerId: string;
+  playerName: string;
+  playerRank: string;
+  playerMMR: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: Date;
+  processedAt?: Date;
+}
+
+// Rank images mapping
 interface RankImages {
   [key: string]: string;
 }
@@ -48,28 +84,26 @@ const rankImages: RankImages = {
   'Supersonic Legend': 'https://trackercdn.com/cdn/tracker.gg/rocket-league/ranks/s4-22.png'
 };
 
-// Safe rank image getter
 const getRankImage = (rank: string): string => {
   return rankImages[rank] || rankImages['Unranked'];
 };
 
-// Уникальные коды для организаторов (запомните эти коды!)
+// Уникальные коды для организаторов
 const ORGANIZER_CODES = [
-  'RL2024-ORG-7B9X2K',  // Код 1
-  'TOURNEY-MASTER-5F8P', // Код 2  
-  'CHAMP-ACCESS-3R6L9Z'  // Код 3
+  'RL2024-ORG-7B9X2K',
+  'TOURNEY-MASTER-5F8P',
+  'CHAMP-ACCESS-3R6L9Z'
 ];
 
 const App: React.FC = () => {
-  const [players, setPlayers] = useState<any[]>([]);
-  const [teams, setTeams] = useState<any[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [nickname, setNickname] = useState('');
   const [platform, setPlatform] = useState('steam');
   const [trackerLink, setTrackerLink] = useState('');
   const [status, setStatus] = useState('Ищу команду');
   const [teamName, setTeamName] = useState('');
   const [teamLogo, setTeamLogo] = useState('');
-  const [teamPlayers, setTeamPlayers] = useState<any[]>([]);
   const [isOrganizer, setIsOrganizer] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -82,10 +116,11 @@ const App: React.FC = () => {
   const [userEmail, setUserEmail] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [organizerCode, setOrganizerCode] = useState('');
-  const [showOrganizerCodeInput, setShowOrganizerCodeInput] = useState(false);
+  const [teamApplications, setTeamApplications] = useState<Application[]>([]);
+  const [myTeam, setMyTeam] = useState<Team | null>(null);
+  const [myPlayer, setMyPlayer] = useState<Player | null>(null);
 
   useEffect(() => {
-    // Проверяем авторизацию пользователя
     const checkAuth = () => {
       const savedEmail = localStorage.getItem('tournament_user_email');
       const savedOrganizerStatus = localStorage.getItem('tournament_organizer');
@@ -103,13 +138,39 @@ const App: React.FC = () => {
     checkAuth();
 
     const unsubscribePlayers = onSnapshot(collection(db, 'players'), (snapshot) => {
-      const playersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const playersData = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      } as Player));
       setPlayers(playersData);
+      
+      // Находим игрока текущего пользователя
+      const userPlayer = playersData.find(p => p.userEmail === userEmail);
+      setMyPlayer(userPlayer || null);
+      
+      if (userPlayer) {
+        findMyTeam(userPlayer.id);
+      }
     });
 
     const unsubscribeTeams = onSnapshot(collection(db, 'teams'), (snapshot) => {
-      const teamsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const teamsData = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      } as Team));
       setTeams(teamsData);
+      
+      if (myPlayer) {
+        findMyTeam(myPlayer.id);
+      }
+    });
+
+    const unsubscribeApplications = onSnapshot(collection(db, 'applications'), (snapshot) => {
+      const applicationsData = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      } as Application));
+      setTeamApplications(applicationsData);
     });
 
     loadTournamentRules();
@@ -117,25 +178,36 @@ const App: React.FC = () => {
     return () => {
       unsubscribePlayers();
       unsubscribeTeams();
+      unsubscribeApplications();
     };
-  }, []);
+  }, [userEmail, myPlayer]);
 
-  const handleLogin = (email: string) => {
-    setUserEmail(email);
-    setIsAuthenticated(true);
-    localStorage.setItem('tournament_user_email', email);
+  const findMyTeam = (playerId: string) => {
+    const userTeam = teams.find(team => team.players.includes(playerId));
+    setMyTeam(userTeam || null);
   };
 
-  const handleOrganizerCodeSubmit = () => {
-    if (ORGANIZER_CODES.includes(organizerCode)) {
+  const handleLogin = (email: string) => {
+    // Проверка валидности email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email) && !ORGANIZER_CODES.includes(email)) {
+      setError('Введите корректный email адрес или код организатора');
+      return;
+    }
+
+    // Проверка кода организатора
+    if (ORGANIZER_CODES.includes(email)) {
       setIsOrganizer(true);
       localStorage.setItem('tournament_organizer', 'true');
-      setSuccessMessage('Код организатора принят! Теперь у вас есть права организатора.');
-      setOrganizerCode('');
-      setShowOrganizerCodeInput(false);
+      setUserEmail('organizer@tournament.com');
+      setSuccessMessage('Режим организатора активирован!');
     } else {
-      setError('Неверный код организатора');
+      setUserEmail(email);
     }
+    
+    setIsAuthenticated(true);
+    localStorage.setItem('tournament_user_email', email);
+    setError('');
   };
 
   const handleLogout = () => {
@@ -143,7 +215,8 @@ const App: React.FC = () => {
     setIsAuthenticated(false);
     setIsOrganizer(false);
     setOrganizerCode('');
-    setShowOrganizerCodeInput(false);
+    setMyTeam(null);
+    setMyPlayer(null);
     localStorage.removeItem('tournament_user_email');
     localStorage.removeItem('tournament_organizer');
   };
@@ -231,6 +304,12 @@ const App: React.FC = () => {
       return;
     }
 
+    // Проверяем, не зарегистрирован ли уже пользователь
+    if (myPlayer) {
+      setError('Вы уже зарегистрированы в турнире!');
+      return;
+    }
+
     setLoading(true);
     setError('');
     setSuccessMessage('');
@@ -251,11 +330,36 @@ const App: React.FC = () => {
       setNickname('');
       setTrackerLink('');
       setPlayerData(null);
-      setSuccessMessage('Игрок успешно добавлен!');
+      setSuccessMessage('Вы успешно зарегистрированы в турнире!');
     } catch (error) {
-      setError('Ошибка добавления игрока');
+      setError('Ошибка регистрации в турнире');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const deleteMyPlayer = async () => {
+    if (!myPlayer) return;
+
+    try {
+      // Если игрок в команде, выходим из неё
+      if (myTeam) {
+        await leaveTeam();
+      }
+
+      // Удаляем все заявки игрока
+      const myApplications = teamApplications.filter(app => app.playerId === myPlayer.id);
+      for (const app of myApplications) {
+        await deleteDoc(doc(db, 'applications', app.id));
+      }
+
+      // Удаляем игрока
+      await deleteDoc(doc(db, 'players', myPlayer.id));
+      
+      setSuccessMessage('Вы вышли из турнира');
+      setMyPlayer(null);
+    } catch (error) {
+      setError('Ошибка выхода из турнира');
     }
   };
 
@@ -287,11 +391,93 @@ const App: React.FC = () => {
     }
   };
 
+  const sendApplication = async (teamId: string) => {
+    if (!myPlayer) {
+      setError('Сначала зарегистрируйтесь в турнире');
+      return;
+    }
+
+    if (myTeam) {
+      setError('Вы уже состоите в команде!');
+      return;
+    }
+
+    // Проверяем, не отправлял ли уже заявку
+    const existingApplication = teamApplications.find(app => 
+      app.teamId === teamId && app.playerId === myPlayer.id && app.status === 'pending'
+    );
+
+    if (existingApplication) {
+      setError('Вы уже отправили заявку в эту команду');
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, 'applications'), {
+        teamId: teamId,
+        playerId: myPlayer.id,
+        playerName: myPlayer.nickname,
+        playerRank: myPlayer.rank,
+        playerMMR: myPlayer.mmr,
+        status: 'pending',
+        createdAt: new Date()
+      });
+      
+      setSuccessMessage('Заявка отправлена! Ожидайте решения капитана.');
+    } catch (error) {
+      setError('Ошибка отправки заявки');
+    }
+  };
+
+  const processApplication = async (applicationId: string, status: 'approved' | 'rejected') => {
+    try {
+      const application = teamApplications.find(app => app.id === applicationId);
+      if (!application) return;
+
+      if (status === 'approved') {
+        const team = teams.find(t => t.id === application.teamId);
+        if (team && team.players.length < 3) {
+          await updateDoc(doc(db, 'teams', application.teamId), {
+            players: [...team.players, application.playerId]
+          });
+          
+          await updateDoc(doc(db, 'players', application.playerId), {
+            status: 'В команде'
+          });
+        } else {
+          setError('Команда уже заполнена (максимум 3 игрока)');
+          return;
+        }
+      }
+
+      await updateDoc(doc(db, 'applications', applicationId), {
+        status: status,
+        processedAt: new Date()
+      });
+
+      setSuccessMessage(`Заявка ${status === 'approved' ? 'принята' : 'отклонена'}!`);
+    } catch (error) {
+      setError('Ошибка обработки заявки');
+    }
+  };
+
   const createTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (teamPlayers.length === 0) {
-      setError('Выберите хотя бы одного игрока');
+    if (!myPlayer) {
+      setError('Сначала зарегистрируйтесь в турнире');
+      return;
+    }
+
+    if (myTeam) {
+      setError('Вы уже состоите в команде!');
+      return;
+    }
+
+    // Проверяем, не создал ли уже пользователь команду
+    const userCreatedTeam = teams.find(team => team.createdBy === userEmail);
+    if (userCreatedTeam) {
+      setError('Вы уже создали команду! Одна команда на пользователя.');
       return;
     }
 
@@ -300,23 +486,23 @@ const App: React.FC = () => {
     setSuccessMessage('');
 
     try {
-      const playerIds = teamPlayers.map((p) => p.id);
-      const mmrs = teamPlayers.map((p) => parseInt(p.mmr) || 0);
-      const averageMMR = mmrs.length ? Math.round(mmrs.reduce((a, b) => a + b, 0) / mmrs.length) : 0;
-      
       await addDoc(collection(db, 'teams'), {
         name: teamName.trim(),
         logo: teamLogo,
-        players: playerIds,
-        averageMMR,
+        players: [myPlayer.id],
+        captain: myPlayer.id,
+        averageMMR: parseInt(myPlayer.mmr) || 0,
         createdAt: new Date(),
         createdBy: userEmail
       });
       
+      await updateDoc(doc(db, 'players', myPlayer.id), {
+        status: 'Капитан'
+      });
+      
       setTeamName('');
       setTeamLogo('');
-      setTeamPlayers([]);
-      setSuccessMessage('Команда успешно создана!');
+      setSuccessMessage('Команда успешно создана! Вы стали капитаном.');
     } catch (error) {
       setError('Ошибка создания команды');
     } finally {
@@ -324,28 +510,63 @@ const App: React.FC = () => {
     }
   };
 
+  const leaveTeam = async () => {
+    if (!myTeam || !myPlayer) return;
+
+    try {
+      const updatedPlayers = myTeam.players.filter((id: string) => id !== myPlayer.id);
+      
+      if (updatedPlayers.length === 0) {
+        await deleteDoc(doc(db, 'teams', myTeam.id));
+      } else {
+        await updateDoc(doc(db, 'teams', myTeam.id), {
+          players: updatedPlayers
+        });
+
+        if (myTeam.captain === myPlayer.id && updatedPlayers.length > 0) {
+          await updateDoc(doc(db, 'teams', myTeam.id), {
+            captain: updatedPlayers[0]
+          });
+        }
+      }
+
+      await updateDoc(doc(db, 'players', myPlayer.id), {
+        status: 'Ищу команду'
+      });
+
+      setSuccessMessage('Вы вышли из команды');
+    } catch (error) {
+      setError('Ошибка выхода из команды');
+    }
+  };
+
   const tabs = [
-    { id: 'add-player', label: 'Добавление аккаунта' },
+    { id: 'add-player', label: 'Регистрация' },
     { id: 'players-list', label: 'Список игроков' },
-    { id: 'create-team', label: 'Создание команды' },
-    { id: 'teams-list', label: 'Список команд' },
+    { id: 'create-team', label: 'Команды' },
     { id: 'bracket', label: 'Турнирная сетка', disabled: true }
   ];
 
-  // Компонент авторизации
   const LoginForm = () => (
     <div style={styles.loginContainer}>
       <div style={styles.loginForm}>
-        <h2 style={styles.loginTitle}>Вход в систему</h2>
-        <p style={styles.loginSubtitle}>Введите ваш email для участия в турнире</p>
+        <h2 style={styles.loginTitle}>Вход в турнир</h2>
+        <p style={styles.loginSubtitle}>
+          Введите ваш email для участия или код организатора
+        </p>
         
         <div style={styles.formGroup}>
           <input
-            type="email"
+            type="text"
             value={userEmail}
             onChange={(e) => setUserEmail(e.target.value)}
-            placeholder="your@email.com"
+            placeholder="your@email.com или код организатора"
             style={styles.input}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleLogin(userEmail);
+              }
+            }}
           />
         </div>
         
@@ -357,41 +578,16 @@ const App: React.FC = () => {
             ...(!userEmail && styles.buttonDisabled)
           }}
         >
-          Войти как участник
+          Войти
         </button>
 
-        <div style={styles.organizerSection}>
-          <button
-            style={styles.organizerToggle}
-            onClick={() => setShowOrganizerCodeInput(!showOrganizerCodeInput)}
-          >
-            {showOrganizerCodeInput ? 'Отмена' : 'Я организатор'}
-          </button>
-
-          {showOrganizerCodeInput && (
-            <div style={styles.organizerCodeContainer}>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Код организатора</label>
-                <input
-                  type="password"
-                  value={organizerCode}
-                  onChange={(e) => setOrganizerCode(e.target.value)}
-                  placeholder="Введите секретный код"
-                  style={styles.input}
-                />
-              </div>
-              <button
-                onClick={handleOrganizerCodeSubmit}
-                disabled={!organizerCode}
-                style={{
-                  ...styles.organizerCodeButton,
-                  ...(!organizerCode && styles.buttonDisabled)
-                }}
-              >
-                Подтвердить код
-              </button>
-            </div>
-          )}
+        <div style={styles.loginHint}>
+          <p>Для доступа организатора используйте один из кодов:</p>
+          <ul style={styles.codesList}>
+            {ORGANIZER_CODES.map((code, index) => (
+              <li key={index} style={styles.codeItem}>{code}</li>
+            ))}
+          </ul>
         </div>
       </div>
     </div>
@@ -476,9 +672,11 @@ const App: React.FC = () => {
             </button>
             
             <div style={styles.userInfo}>
-              <span style={styles.userEmail}>{userEmail}</span>
-              {isOrganizer && (
-                <span style={styles.organizerBadge}>Организатор</span>
+              <span style={styles.userEmail}>
+                {isOrganizer ? 'Организатор' : userEmail}
+              </span>
+              {myTeam && (
+                <span style={styles.teamBadge}>{myTeam.name}</span>
               )}
               <button 
                 style={styles.logoutButton}
@@ -535,119 +733,141 @@ const App: React.FC = () => {
           {/* Add Player Tab */}
           {activeTab === 'add-player' && (
             <div style={styles.formContainer}>
-              <h2 style={styles.tabTitle}>Добавление аккаунта</h2>
-              <p style={styles.tabSubtitle}>Зарегистрируйте свой аккаунт для участия в турнире</p>
-              
-              <form onSubmit={addPlayer} style={styles.form}>
-                <div style={styles.formGrid}>
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Никнейм *</label>
-                    <input
-                      type="text"
-                      value={nickname}
-                      onChange={(e) => setNickname(e.target.value)}
-                      placeholder="Введите ваш никнейм в игре"
-                      style={styles.input}
-                      required
-                    />
-                  </div>
-                  
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Платформа *</label>
-                    <div style={styles.selectContainer}>
-                      <select
-                        value={platform}
-                        onChange={(e) => setPlatform(e.target.value)}
-                        style={styles.select}
-                      >
-                        <option value="steam">Steam</option>
-                        <option value="epic">Epic Games</option>
-                      </select>
-                      <span style={styles.selectArrow}>▼</span>
+              {myPlayer ? (
+                <div style={styles.myProfileContainer}>
+                  <h2 style={styles.tabTitle}>Мой профиль</h2>
+                  <div style={styles.profileCard}>
+                    <div style={styles.profileHeader}>
+                      <h3 style={styles.playerName}>{myPlayer.nickname}</h3>
+                      <span style={styles.platform}>{myPlayer.platform}</span>
                     </div>
+                    
+                    <div style={styles.profileStats}>
+                      <div style={styles.stat}>
+                        <span style={styles.statLabel}>Ранг:</span>
+                        <span style={styles.statValue}>{myPlayer.rank}</span>
+                      </div>
+                      <div style={styles.stat}>
+                        <span style={styles.statLabel}>MMR:</span>
+                        <span style={styles.statValue}>{myPlayer.mmr}</span>
+                      </div>
+                      <div style={styles.stat}>
+                        <span style={styles.statLabel}>Статус:</span>
+                        <span style={styles.statValue}>{myPlayer.status}</span>
+                      </div>
+                    </div>
+
+                    {myTeam && (
+                      <div style={styles.teamSection}>
+                        <h4>Моя команда: {myTeam.name}</h4>
+                        <button
+                          onClick={leaveTeam}
+                          style={styles.leaveTeamBtn}
+                        >
+                          Покинуть команду
+                        </button>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={deleteMyPlayer}
+                      style={styles.deleteAccountBtn}
+                    >
+                      Выйти из турнира
+                    </button>
                   </div>
                 </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Ссылка на tracker.gg *</label>
-                  <input
-                    type="url"
-                    value={trackerLink}
-                    onChange={(e) => setTrackerLink(e.target.value)}
-                    placeholder="Вставьте ссылку на ваш профиль tracker.gg"
-                    style={styles.input}
-                    required
-                  />
-                  <p style={styles.helperText}>
-                    Скопируйте URL вашего профиля с сайта tracker.gg
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={fetchPlayerData}
-                  disabled={!nickname || !trackerLink || loading}
-                  style={{
-                    ...styles.secondaryButton,
-                    ...((!nickname || !trackerLink || loading) && styles.buttonDisabled)
-                  }}
-                >
-                  {loading ? 'Получение данных...' : 'Получить данные игрока'}
-                </button>
-
-                {/* Player Data Preview */}
-                {playerData && (
-                  <div style={styles.playerPreview}>
-                    <h3 style={styles.previewTitle}>Данные игрока:</h3>
-                    <div style={styles.previewContent}>
-                      <div style={styles.rankInfo}>
-                        <img 
-                          src={playerData.rankImage} 
-                          alt={playerData.rank}
-                          style={styles.rankImage}
-                          onError={(e) => {
-                            e.currentTarget.src = getRankImage('Unranked');
-                          }}
+              ) : (
+                <>
+                  <h2 style={styles.tabTitle}>Регистрация в турнире</h2>
+                  <p style={styles.tabSubtitle}>Зарегистрируйте свой аккаунт для участия</p>
+                  
+                  <form onSubmit={addPlayer} style={styles.form}>
+                    <div style={styles.formGrid}>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>Никнейм *</label>
+                        <input
+                          type="text"
+                          value={nickname}
+                          onChange={(e) => setNickname(e.target.value)}
+                          placeholder="Введите ваш никнейм в игре"
+                          style={styles.input}
+                          required
                         />
-                        <div>
-                          <div style={styles.rankName}>{playerData.rank}</div>
-                          <div style={styles.mmr}>MMR: {playerData.mmr}</div>
+                      </div>
+                      
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>Платформа *</label>
+                        <div style={styles.selectContainer}>
+                          <select
+                            value={platform}
+                            onChange={(e) => setPlatform(e.target.value)}
+                            style={styles.select}
+                          >
+                            <option value="steam">Steam</option>
+                            <option value="epic">Epic Games</option>
+                          </select>
+                          <span style={styles.selectArrow}>▼</span>
                         </div>
                       </div>
-                      <div style={styles.playerInfo}>
-                        <div>Никнейм: <strong>{playerData.nickname}</strong></div>
-                        <div>Платформа: <strong>{playerData.platform}</strong></div>
-                      </div>
                     </div>
-                  </div>
-                )}
 
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Статус в команде *</label>
-                  <div style={styles.selectContainer}>
-                    <select
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value)}
-                      style={styles.select}
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Ссылка на tracker.gg *</label>
+                      <input
+                        type="url"
+                        value={trackerLink}
+                        onChange={(e) => setTrackerLink(e.target.value)}
+                        placeholder="Вставьте ссылку на ваш профиль tracker.gg"
+                        style={styles.input}
+                        required
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={fetchPlayerData}
+                      disabled={!nickname || !trackerLink || loading}
+                      style={{
+                        ...styles.secondaryButton,
+                        ...((!nickname || !trackerLink || loading) && styles.buttonDisabled)
+                      }}
                     >
-                      <option value="Ищу команду">Ищу команду</option>
-                      <option value="Капитан">Капитан</option>
-                    </select>
-                    <span style={styles.selectArrow}>▼</span>
-                  </div>
-                </div>
+                      {loading ? 'Получение данных...' : 'Получить данные игрока'}
+                    </button>
 
-                <button
-                  type="submit"
-                  disabled={loading || !playerData}
-                  style={{
-                    ...styles.submitButton,
-                    ...((loading || !playerData) && styles.buttonDisabled)
-                  }}
-                >
-                  {loading ? 'Добавление...' : 'Добавить аккаунт'}
-                </button>
-              </form>
+                    {playerData && (
+                      <div style={styles.playerPreview}>
+                        <h3 style={styles.previewTitle}>Данные игрока:</h3>
+                        <div style={styles.previewContent}>
+                          <div style={styles.rankInfo}>
+                            <img 
+                              src={playerData.rankImage} 
+                              alt={playerData.rank}
+                              style={styles.rankImage}
+                            />
+                            <div>
+                              <div style={styles.rankName}>{playerData.rank}</div>
+                              <div style={styles.mmr}>MMR: {playerData.mmr}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={loading || !playerData}
+                      style={{
+                        ...styles.submitButton,
+                        ...((loading || !playerData) && styles.buttonDisabled)
+                      }}
+                    >
+                      {loading ? 'Регистрация...' : 'Зарегистрироваться в турнире'}
+                    </button>
+                  </form>
+                </>
+              )}
             </div>
           )}
 
@@ -673,16 +893,11 @@ const App: React.FC = () => {
                           <h3 style={styles.playerName}>{player.nickname}</h3>
                           <span style={styles.platform}>{player.platform}</span>
                         </div>
-                        {player.rankImage && (
-                          <img 
-                            src={player.rankImage} 
-                            alt={player.rank}
-                            style={styles.cardRankImage}
-                            onError={(e) => {
-                              e.currentTarget.src = getRankImage('Unranked');
-                            }}
-                          />
-                        )}
+                        <img 
+                          src={player.rankImage} 
+                          alt={player.rank}
+                          style={styles.cardRankImage}
+                        />
                       </div>
                       
                       <div style={styles.playerStats}>
@@ -701,16 +916,14 @@ const App: React.FC = () => {
                       </div>
                       
                       <div style={styles.cardActions}>
-                        {player.trackerLink && (
-                          <a 
-                            href={player.trackerLink} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            style={styles.profileLink}
-                          >
-                            Открыть профиль
-                          </a>
-                        )}
+                        <a 
+                          href={player.trackerLink} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          style={styles.profileLink}
+                        >
+                          Профиль
+                        </a>
                         {isOrganizer && (
                           <button
                             onClick={() => deletePlayer(player.id)}
@@ -727,87 +940,42 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Create Team Tab */}
+          {/* Teams Tab */}
           {activeTab === 'create-team' && (
-            <div style={styles.formContainer}>
-              <h2 style={styles.tabTitle}>Создание команды</h2>
-              <p style={styles.tabSubtitle}>Соберите команду для участия в турнире</p>
-              
-              <form onSubmit={createTeam} style={styles.form}>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Название команды *</label>
-                  <input
-                    type="text"
-                    value={teamName}
-                    onChange={(e) => setTeamName(e.target.value)}
-                    placeholder="Введите название команды"
-                    style={styles.input}
-                    required
-                  />
-                </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>
-                    Выберите игроков для команды *
-                    {teamPlayers.length > 0 && <span style={styles.selectedCount}> ({teamPlayers.length} выбрано)</span>}
-                  </label>
-                  <select
-                    multiple
-                    value={teamPlayers.map((p) => p.id)}
-                    onChange={(e) => {
-                      const selectedIds = Array.from(e.target.selectedOptions, option => option.value);
-                      const selectedPlayers = players.filter(p => selectedIds.includes(p.id));
-                      setTeamPlayers(selectedPlayers);
-                    }}
-                    style={{...styles.select, height: '150px'}}
-                    required
-                  >
-                    {players.map(player => (
-                      <option key={player.id} value={player.id}>
-                        {player.nickname} ({player.platform}) - {player.rank} ({player.mmr} MMR)
-                      </option>
-                    ))}
-                  </select>
-                  <p style={styles.helperText}>Для выбора нескольких игроков удерживайте Ctrl (Cmd на Mac)</p>
-                </div>
-
-                {teamPlayers.length > 0 && (
-                  <div style={styles.selectedPlayers}>
-                    <h4 style={styles.selectedTitle}>Выбранные игроки:</h4>
-                    {teamPlayers.map(player => (
-                      <div key={player.id} style={styles.selectedPlayer}>
-                        <span>{player.nickname}</span>
-                        <span>{player.rank} ({player.mmr} MMR)</span>
-                      </div>
-                    ))}
-                    <div style={styles.averageStats}>
-                      Средний MMR: {Math.round(teamPlayers.reduce((sum, p) => sum + (parseInt(p.mmr) || 0), 0) / teamPlayers.length)}
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading || teamPlayers.length === 0}
-                  style={{
-                    ...styles.submitButton,
-                    ...((loading || teamPlayers.length === 0) && styles.buttonDisabled)
-                  }}
-                >
-                  {loading ? 'Создание...' : 'Создать команду'}
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* Teams List Tab */}
-          {activeTab === 'teams-list' && (
             <div>
               <div style={styles.tabHeader}>
-                <h2 style={styles.tabTitle}>Список команд</h2>
+                <h2 style={styles.tabTitle}>Команды</h2>
                 <span style={styles.counter}>Всего: {teams.length}</span>
               </div>
               
+              {myPlayer && !myTeam && !teams.some(team => team.createdBy === userEmail) && (
+                <div style={styles.createTeamSection}>
+                  <h3>Создать команду</h3>
+                  <form onSubmit={createTeam} style={styles.form}>
+                    <div style={styles.formGroup}>
+                      <input
+                        type="text"
+                        value={teamName}
+                        onChange={(e) => setTeamName(e.target.value)}
+                        placeholder="Название команды"
+                        style={styles.input}
+                        required
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      style={{
+                        ...styles.submitButton,
+                        ...(loading && styles.buttonDisabled)
+                      }}
+                    >
+                      Создать команду
+                    </button>
+                  </form>
+                </div>
+              )}
+
               {teams.length === 0 ? (
                 <div style={styles.emptyState}>
                   <div style={styles.emptyIcon}>🏆</div>
@@ -815,52 +983,94 @@ const App: React.FC = () => {
                 </div>
               ) : (
                 <div style={styles.grid}>
-                  {teams.map(team => (
-                    <div key={team.id} style={styles.teamCard}>
-                      <div style={styles.teamHeader}>
-                        <h3 style={styles.teamName}>{team.name}</h3>
-                        <div style={styles.teamInfo}>
-                          <span>{team.players.length} игроков</span>
-                          <span>Avg MMR: {team.averageMMR}</span>
+                  {teams.map(team => {
+                    const isInTeam = myPlayer && team.players.includes(myPlayer.id);
+                    const hasApplied = myPlayer && teamApplications.some(app => 
+                      app.teamId === team.id && app.playerId === myPlayer.id && app.status === 'pending'
+                    );
+                    const isCaptain = myPlayer && team.captain === myPlayer.id;
+                    const canApply = myPlayer && !isInTeam && !hasApplied && !myTeam && team.players.length < 3;
+
+                    return (
+                      <div key={team.id} style={styles.teamCard}>
+                        <div style={styles.teamHeader}>
+                          <h3 style={styles.teamName}>{team.name}</h3>
+                          <div style={styles.teamInfo}>
+                            <span>{team.players.length}/3 игроков</span>
+                            <span>Avg MMR: {team.averageMMR}</span>
+                          </div>
                         </div>
-                      </div>
-                      
-                      <div style={styles.teamPlayers}>
-                        <h4 style={styles.playersTitle}>Состав команды:</h4>
-                        {team.players.map((id: string) => {
-                          const player = players.find(p => p.id === id);
-                          return player ? (
-                            <div key={id} style={styles.teamPlayer}>
-                              <div style={styles.teamPlayerInfo}>
-                                <span style={styles.teamPlayerName}>{player.nickname}</span>
-                                <span style={styles.teamPlayerPlatform}>{player.platform}</span>
-                              </div>
-                              <div style={styles.teamPlayerRank}>
-                                <img 
-                                  src={player.rankImage} 
-                                  alt={player.rank} 
-                                  style={styles.smallRankImage}
-                                  onError={(e) => {
-                                    e.currentTarget.src = getRankImage('Unranked');
-                                  }}
-                                />
+                        
+                        <div style={styles.teamPlayers}>
+                          <h4>Состав:</h4>
+                          {team.players.map((id: string) => {
+                            const player = players.find(p => p.id === id);
+                            return player ? (
+                              <div key={id} style={styles.teamPlayer}>
+                                <span style={styles.teamPlayerName}>
+                                  {player.nickname}
+                                  {id === team.captain && ' 👑'}
+                                </span>
                                 <span>{player.rank} ({player.mmr})</span>
                               </div>
-                            </div>
-                          ) : null;
-                        })}
+                            ) : null;
+                          })}
+                        </div>
+                        
+                        <div style={styles.teamActions}>
+                          {canApply && (
+                            <button
+                              onClick={() => sendApplication(team.id)}
+                              style={styles.applyBtn}
+                            >
+                              Вступить в команду
+                            </button>
+                          )}
+                          {hasApplied && (
+                            <span style={styles.pendingBadge}>Заявка отправлена</span>
+                          )}
+                          {isInTeam && (
+                            <span style={styles.memberBadge}>Вы в команде</span>
+                          )}
+                          {isOrganizer && (
+                            <button
+                              onClick={() => deleteTeam(team.id)}
+                              style={styles.deleteBtn}
+                            >
+                              Удалить
+                            </button>
+                          )}
+                        </div>
+
+                        {isCaptain && (
+                          <div style={styles.applicationsSection}>
+                            <h5>Заявки:</h5>
+                            {teamApplications
+                              .filter(app => app.teamId === team.id && app.status === 'pending')
+                              .map(application => (
+                                <div key={application.id} style={styles.applicationCard}>
+                                  <span>{application.playerName}</span>
+                                  <div>
+                                    <button
+                                      onClick={() => processApplication(application.id, 'approved')}
+                                      style={styles.approveBtn}
+                                    >
+                                      ✓
+                                    </button>
+                                    <button
+                                      onClick={() => processApplication(application.id, 'rejected')}
+                                      style={styles.rejectBtn}
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        )}
                       </div>
-                      
-                      {isOrganizer && (
-                        <button
-                          onClick={() => deleteTeam(team.id)}
-                          style={styles.deleteBtn}
-                        >
-                          Удалить команду
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -873,13 +1083,8 @@ const App: React.FC = () => {
                 <div style={styles.comingSoonIcon}>🏆</div>
                 <h2 style={styles.comingSoonTitle}>Турнирная сетка</h2>
                 <p style={styles.comingSoonText}>
-                  Раздел находится в разработке. Скоро здесь появится турнирная сетка с матчами и результатами.
+                  Раздел находится в разработке
                 </p>
-                {isOrganizer && (
-                  <p style={styles.organizerNote}>
-                    Как организатор, вы сможете управлять турнирной сеткой после запуска функционала.
-                  </p>
-                )}
               </div>
             </div>
           )}
@@ -889,7 +1094,7 @@ const App: React.FC = () => {
   );
 };
 
-// Modern CSS-in-JS styles
+// Полные стили
 const styles = {
   container: {
     minHeight: '100vh',
@@ -919,7 +1124,8 @@ const styles = {
   loginTitle: {
     color: 'white',
     textAlign: 'center',
-    marginBottom: '0.5rem'
+    marginBottom: '0.5rem',
+    fontSize: '2rem'
   },
   
   loginSubtitle: {
@@ -928,43 +1134,24 @@ const styles = {
     marginBottom: '2rem'
   },
   
-  organizerSection: {
+  loginHint: {
     marginTop: '2rem',
-    borderTop: '1px solid rgba(255, 255, 255, 0.2)',
-    paddingTop: '2rem'
-  },
-  
-  organizerToggle: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    color: 'white',
-    padding: '0.75rem 1.5rem',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    width: '100%',
-    fontSize: '1rem',
-    fontWeight: '500',
-    transition: 'all 0.3s'
-  },
-  
-  organizerCodeContainer: {
-    marginTop: '1rem',
     padding: '1rem',
-    background: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: '8px'
+    background: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: '8px',
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: '0.9rem'
   },
   
-  organizerCodeButton: {
-    background: 'linear-gradient(45deg, #10b981, #059669)',
-    color: 'white',
-    border: 'none',
-    padding: '0.75rem 1.5rem',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    width: '100%',
-    fontSize: '1rem',
-    fontWeight: '500',
-    marginTop: '1rem'
+  codesList: {
+    margin: '0.5rem 0',
+    paddingLeft: '1.5rem'
+  },
+  
+  codeItem: {
+    fontSize: '0.8rem',
+    marginBottom: '0.25rem',
+    fontFamily: 'monospace'
   },
   
   header: {
@@ -1001,13 +1188,13 @@ const styles = {
     opacity: '0.8'
   },
   
-  organizerBadge: {
-    background: '#10b981',
-    color: 'white',
+  teamBadge: {
+    background: 'rgba(59, 130, 246, 0.2)',
+    color: '#3b82f6',
+    border: '1px solid rgba(59, 130, 246, 0.3)',
     padding: '0.25rem 0.75rem',
     borderRadius: '12px',
-    fontSize: '0.8rem',
-    fontWeight: '600'
+    fontSize: '0.8rem'
   },
   
   logoutButton: {
@@ -1041,8 +1228,7 @@ const styles = {
     borderRadius: '8px',
     cursor: 'pointer',
     fontSize: '1rem',
-    fontWeight: '500',
-    transition: 'all 0.3s'
+    fontWeight: '500'
   },
   
   nav: {
@@ -1067,8 +1253,7 @@ const styles = {
     fontWeight: '500',
     cursor: 'pointer',
     transition: 'all 0.3s',
-    borderBottom: '3px solid transparent',
-    position: 'relative'
+    borderBottom: '3px solid transparent'
   },
   
   navButtonActive: {
@@ -1174,7 +1359,6 @@ const styles = {
     borderRadius: '8px',
     color: 'white',
     fontSize: '1rem',
-    transition: 'all 0.3s',
     fontWeight: '500'
   },
   
@@ -1204,12 +1388,6 @@ const styles = {
     pointerEvents: 'none'
   },
   
-  helperText: {
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontSize: '0.8rem',
-    margin: '0.25rem 0 0 0'
-  },
-  
   submitButton: {
     padding: '1rem 2rem',
     background: 'linear-gradient(45deg, #10b981, #059669)',
@@ -1219,7 +1397,6 @@ const styles = {
     fontSize: '1.1rem',
     fontWeight: '600',
     cursor: 'pointer',
-    transition: 'all 0.3s',
     marginTop: '1rem'
   },
   
@@ -1231,8 +1408,7 @@ const styles = {
     borderRadius: '8px',
     fontSize: '1rem',
     fontWeight: '500',
-    cursor: 'pointer',
-    transition: 'all 0.3s'
+    cursor: 'pointer'
   },
   
   buttonDisabled: {
@@ -1283,11 +1459,6 @@ const styles = {
     fontSize: '0.9rem'
   },
   
-  playerInfo: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: '0.9rem'
-  },
-  
   tabHeader: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -1326,8 +1497,7 @@ const styles = {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
     borderRadius: '12px',
-    padding: '1.5rem',
-    transition: 'all 0.3s'
+    padding: '1.5rem'
   },
   
   cardHeader: {
@@ -1399,7 +1569,6 @@ const styles = {
     padding: '0.75rem',
     borderRadius: '6px',
     textDecoration: 'none',
-    transition: 'all 0.3s',
     fontSize: '0.9rem'
   },
   
@@ -1410,7 +1579,6 @@ const styles = {
     padding: '0.75rem 1rem',
     borderRadius: '6px',
     cursor: 'pointer',
-    transition: 'all 0.3s',
     fontSize: '0.9rem'
   },
   
@@ -1418,8 +1586,7 @@ const styles = {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
     borderRadius: '12px',
-    padding: '1.5rem',
-    transition: 'all 0.3s'
+    padding: '1.5rem'
   },
   
   teamHeader: {
@@ -1446,29 +1613,16 @@ const styles = {
   },
   
   teamPlayers: {
-    marginTop: '1rem'
-  },
-  
-  playersTitle: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: '1rem',
-    marginBottom: '0.5rem'
+    marginTop: '1rem',
+    color: 'rgba(255, 255, 255, 0.8)'
   },
   
   teamPlayer: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    background: 'rgba(255, 255, 255, 0.05)',
-    padding: '0.75rem',
-    borderRadius: '6px',
-    marginBottom: '0.5rem'
-  },
-  
-  teamPlayerInfo: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem'
+    padding: '0.5rem 0',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
   },
   
   teamPlayerName: {
@@ -1476,64 +1630,137 @@ const styles = {
     fontWeight: '500'
   },
   
-  teamPlayerPlatform: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    color: 'rgba(255, 255, 255, 0.8)',
-    padding: '0.2rem 0.5rem',
-    borderRadius: '4px',
+  teamActions: {
+    display: 'flex',
+    gap: '0.5rem',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: '1rem'
+  },
+  
+  applyBtn: {
+    background: 'linear-gradient(45deg, #3b82f6, #1d4ed8)',
+    color: 'white',
+    border: 'none',
+    padding: '0.75rem 1.5rem',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '0.9rem',
+    fontWeight: '500'
+  },
+  
+  pendingBadge: {
+    background: 'rgba(245, 158, 11, 0.2)',
+    color: '#fcd34d',
+    border: '1px solid rgba(245, 158, 11, 0.3)',
+    padding: '0.5rem 1rem',
+    borderRadius: '6px',
     fontSize: '0.8rem'
   },
   
-  teamPlayerRank: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: '0.9rem'
+  memberBadge: {
+    background: 'rgba(16, 185, 129, 0.2)',
+    color: '#10b981',
+    border: '1px solid rgba(16, 185, 129, 0.3)',
+    padding: '0.5rem 1rem',
+    borderRadius: '6px',
+    fontSize: '0.8rem'
   },
   
-  smallRankImage: {
-    width: '25px',
-    height: '25px',
-    objectFit: 'contain'
+  applicationsSection: {
+    marginTop: '1rem',
+    paddingTop: '1rem',
+    borderTop: '1px solid rgba(255, 255, 255, 0.1)'
   },
   
-  selectedPlayers: {
-    background: 'rgba(255, 255, 255, 0.05)',
-    padding: '1rem',
-    borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.1)'
-  },
-  
-  selectedTitle: {
-    color: 'white',
-    marginBottom: '0.5rem',
-    fontSize: '1rem'
-  },
-  
-  selectedPlayer: {
+  applicationCard: {
     display: 'flex',
     justifyContent: 'space-between',
-    padding: '0.5rem 0',
-    color: 'rgba(255, 255, 255, 0.8)',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+    alignItems: 'center',
+    padding: '0.5rem',
+    background: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: '4px',
+    marginBottom: '0.5rem'
   },
   
-  selectedCount: {
-    color: '#10b981',
-    fontWeight: '600'
+  approveBtn: {
+    background: '#10b981',
+    color: 'white',
+    border: 'none',
+    padding: '0.25rem 0.5rem',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    marginLeft: '0.5rem'
   },
   
-  averageStats: {
-    marginTop: '0.5rem',
-    paddingTop: '0.5rem',
-    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-    color: '#10b981',
-    fontWeight: '600',
+  rejectBtn: {
+    background: 'rgba(239, 68, 68, 0.2)',
+    color: '#fca5a5',
+    border: '1px solid rgba(239, 68, 68, 0.3)',
+    padding: '0.25rem 0.5rem',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    marginLeft: '0.5rem'
+  },
+  
+  createTeamSection: {
+    background: 'rgba(255, 255, 255, 0.05)',
+    padding: '1.5rem',
+    borderRadius: '8px',
+    marginBottom: '2rem'
+  },
+  
+  myProfileContainer: {
     textAlign: 'center'
   },
   
-  // Coming Soon Styles
+  profileCard: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    borderRadius: '12px',
+    padding: '2rem',
+    maxWidth: '400px',
+    margin: '0 auto'
+  },
+  
+  profileHeader: {
+    marginBottom: '1.5rem'
+  },
+  
+  profileStats: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    marginBottom: '1.5rem'
+  },
+  
+  teamSection: {
+    marginBottom: '1.5rem',
+    padding: '1rem',
+    background: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: '8px'
+  },
+  
+  leaveTeamBtn: {
+    background: 'rgba(239, 68, 68, 0.2)',
+    color: '#fca5a5',
+    border: '1px solid rgba(239, 68, 68, 0.3)',
+    padding: '0.5rem 1rem',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    marginTop: '0.5rem'
+  },
+  
+  deleteAccountBtn: {
+    background: 'rgba(239, 68, 68, 0.3)',
+    color: '#fca5a5',
+    border: '1px solid rgba(239, 68, 68, 0.5)',
+    padding: '0.75rem 1.5rem',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    width: '100%'
+  },
+  
   comingSoonContainer: {
     display: 'flex',
     justifyContent: 'center',
@@ -1558,14 +1785,7 @@ const styles = {
   
   comingSoonText: {
     fontSize: '1.1rem',
-    opacity: '0.8',
-    marginBottom: '1rem'
-  },
-  
-  organizerNote: {
-    fontSize: '0.9rem',
-    opacity: '0.6',
-    fontStyle: 'italic'
+    opacity: '0.8'
   },
   
   // Modal Styles
