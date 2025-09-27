@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 
@@ -112,6 +112,7 @@ const App: React.FC = () => {
   const [playerData, setPlayerData] = useState<any>(null);
   const [showRules, setShowRules] = useState(false);
   const [tournamentRules, setTournamentRules] = useState('Tournament Rules:\n\n1. Team Composition: 3 players per team\n2. Format: Double elimination bracket\n3. Match Rules: Best of 3 for early rounds, Best of 5 for finals\n4. Server Selection: EU servers preferred\n5. Schedule: Matches must be completed within designated timeframes\n\nPlease ensure fair play and good sportsmanship throughout the tournament.');
+  const [originalRules, setOriginalRules] = useState('');
   const [editingRules, setEditingRules] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -119,6 +120,7 @@ const App: React.FC = () => {
   const [teamApplications, setTeamApplications] = useState<Application[]>([]);
   const [myTeam, setMyTeam] = useState<Team | null>(null);
   const [myPlayer, setMyPlayer] = useState<Player | null>(null);
+  const [processingApplications, setProcessingApplications] = useState(new Set<string>());
 
   useEffect(() => {
     const checkAuth = () => {
@@ -182,12 +184,12 @@ const App: React.FC = () => {
     };
   }, [userEmail, myPlayer]);
 
-  const findMyTeam = (playerId: string) => {
+  const findMyTeam = useCallback((playerId: string) => {
     const userTeam = teams.find(team => team.players.includes(playerId));
     setMyTeam(userTeam || null);
-  };
+  }, [teams]);
 
-  const handleLogin = (email: string) => {
+  const handleLogin = useCallback((email: string) => {
     // Проверка валидности email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email) && !ORGANIZER_CODES.includes(email)) {
@@ -208,9 +210,9 @@ const App: React.FC = () => {
     setIsAuthenticated(true);
     localStorage.setItem('tournament_user_email', email);
     setError('');
-  };
+  }, []);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     setUserEmail('');
     setIsAuthenticated(false);
     setIsOrganizer(false);
@@ -219,33 +221,41 @@ const App: React.FC = () => {
     setMyPlayer(null);
     localStorage.removeItem('tournament_user_email');
     localStorage.removeItem('tournament_organizer');
-  };
+  }, []);
 
-  const loadTournamentRules = async () => {
+  const loadTournamentRules = useCallback(async () => {
     try {
       const rulesDoc = await getDoc(doc(db, 'settings', 'tournamentRules'));
       if (rulesDoc.exists()) {
-        setTournamentRules(rulesDoc.data().rules);
+        const rules = rulesDoc.data().rules;
+        setTournamentRules(rules);
+        setOriginalRules(rules);
       }
     } catch (error) {
       console.error('Error loading tournament rules:', error);
     }
-  };
+  }, []);
 
-  const saveTournamentRules = async () => {
+  const saveTournamentRules = useCallback(async () => {
     try {
       await setDoc(doc(db, 'settings', 'tournamentRules'), {
         rules: tournamentRules,
         lastUpdated: new Date()
       });
+      setOriginalRules(tournamentRules);
       setEditingRules(false);
       setSuccessMessage('Правила турнира успешно обновлены!');
     } catch (error) {
       setError('Ошибка сохранения правил турнира');
     }
-  };
+  }, [tournamentRules]);
 
-  const parseTrackerData = async (url: string) => {
+  const cancelEditingRules = useCallback(() => {
+    setTournamentRules(originalRules);
+    setEditingRules(false);
+  }, [originalRules]);
+
+  const parseTrackerData = useCallback(async (url: string) => {
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
@@ -270,9 +280,9 @@ const App: React.FC = () => {
         rankImage: getRankImage('Unranked')
       };
     }
-  };
+  }, []);
 
-  const fetchPlayerData = async () => {
+  const fetchPlayerData = useCallback(async () => {
     if (!nickname || !trackerLink) {
       setError('Заполните никнейм и ссылку на tracker.gg');
       return;
@@ -294,9 +304,9 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [nickname, trackerLink, platform, parseTrackerData]);
 
-  const addPlayer = async (e: React.FormEvent) => {
+  const addPlayer = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!playerData) {
@@ -336,9 +346,64 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [playerData, myPlayer, status, userEmail, trackerLink]);
 
-  const deleteMyPlayer = async () => {
+  const updateTeamAverageMMR = useCallback(async (teamId: string) => {
+    try {
+      const teamDoc = await getDoc(doc(db, 'teams', teamId));
+      if (!teamDoc.exists()) return;
+
+      const teamData = teamDoc.data() as Team;
+      if (teamData.players.length === 0) {
+        await updateDoc(doc(db, 'teams', teamId), { averageMMR: 0 });
+        return;
+      }
+
+      const playerDocs = await Promise.all(teamData.players.map(pId => getDoc(doc(db, 'players', pId))));
+      const mmrs = playerDocs
+        .map(p => parseInt(p.data()?.mmr || '0', 10))
+        .filter(m => !isNaN(m));
+
+      const avg = mmrs.length > 0 ? Math.round(mmrs.reduce((a, b) => a + b, 0) / mmrs.length) : 0;
+      await updateDoc(doc(db, 'teams', teamId), { averageMMR: avg });
+    } catch (error) {
+      console.error('Error updating team average MMR:', error);
+    }
+  }, []);
+
+  const leaveTeam = useCallback(async () => {
+    if (!myTeam || !myPlayer) return;
+
+    try {
+      const updatedPlayers = myTeam.players.filter((id: string) => id !== myPlayer.id);
+      
+      if (updatedPlayers.length === 0) {
+        await deleteDoc(doc(db, 'teams', myTeam.id));
+      } else {
+        await updateDoc(doc(db, 'teams', myTeam.id), {
+          players: updatedPlayers
+        });
+
+        if (myTeam.captain === myPlayer.id && updatedPlayers.length > 0) {
+          await updateDoc(doc(db, 'teams', myTeam.id), {
+            captain: updatedPlayers[0]
+          });
+        }
+
+        await updateTeamAverageMMR(myTeam.id);
+      }
+
+      await updateDoc(doc(db, 'players', myPlayer.id), {
+        status: 'Ищу команду'
+      });
+
+      setSuccessMessage('Вы вышли из команды');
+    } catch (error) {
+      setError('Ошибка выхода из команды');
+    }
+  }, [myTeam, myPlayer, updateTeamAverageMMR]);
+
+  const deleteMyPlayer = useCallback(async () => {
     if (!myPlayer) return;
 
     try {
@@ -361,9 +426,9 @@ const App: React.FC = () => {
     } catch (error) {
       setError('Ошибка выхода из турнира');
     }
-  };
+  }, [myPlayer, myTeam, teamApplications, leaveTeam]);
 
-  const deletePlayer = async (playerId: string) => {
+  const deletePlayer = useCallback(async (playerId: string) => {
     if (!isOrganizer) {
       setError('Только организаторы могут удалять игроков!');
       return;
@@ -375,9 +440,9 @@ const App: React.FC = () => {
     } catch (error) {
       setError('Ошибка удаления игрока');
     }
-  };
+  }, [isOrganizer]);
 
-  const deleteTeam = async (teamId: string) => {
+  const deleteTeam = useCallback(async (teamId: string) => {
     if (!isOrganizer) {
       setError('Только организаторы могут удалять команды!');
       return;
@@ -389,9 +454,9 @@ const App: React.FC = () => {
     } catch (error) {
       setError('Ошибка удаления команды');
     }
-  };
+  }, [isOrganizer]);
 
-  const sendApplication = async (teamId: string) => {
+  const sendApplication = useCallback(async (teamId: string) => {
     if (!myPlayer) {
       setError('Сначала зарегистрируйтесь в турнире');
       return;
@@ -427,9 +492,17 @@ const App: React.FC = () => {
     } catch (error) {
       setError('Ошибка отправки заявки');
     }
-  };
+  }, [myPlayer, myTeam, teamApplications]);
 
-  const processApplication = async (applicationId: string, status: 'approved' | 'rejected') => {
+  const processApplication = useCallback(async (applicationId: string, status: 'approved' | 'rejected') => {
+    if (processingApplications.has(applicationId)) return;
+
+    setProcessingApplications(prev => {
+      const newSet = new Set(prev);
+      newSet.add(applicationId);
+      return newSet;
+    });
+
     try {
       const application = teamApplications.find(app => app.id === applicationId);
       if (!application) return;
@@ -444,6 +517,8 @@ const App: React.FC = () => {
           await updateDoc(doc(db, 'players', application.playerId), {
             status: 'В команде'
           });
+
+          await updateTeamAverageMMR(application.teamId);
         } else {
           setError('Команда уже заполнена (максимум 3 игрока)');
           return;
@@ -458,10 +533,16 @@ const App: React.FC = () => {
       setSuccessMessage(`Заявка ${status === 'approved' ? 'принята' : 'отклонена'}!`);
     } catch (error) {
       setError('Ошибка обработки заявки');
+    } finally {
+      setProcessingApplications(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(applicationId);
+        return newSet;
+      });
     }
-  };
+  }, [processingApplications, teamApplications, teams, updateTeamAverageMMR]);
 
-  const createTeam = async (e: React.FormEvent) => {
+  const createTeam = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!myPlayer) {
@@ -486,7 +567,7 @@ const App: React.FC = () => {
     setSuccessMessage('');
 
     try {
-      await addDoc(collection(db, 'teams'), {
+      const docRef = await addDoc(collection(db, 'teams'), {
         name: teamName.trim(),
         logo: teamLogo,
         players: [myPlayer.id],
@@ -499,6 +580,8 @@ const App: React.FC = () => {
       await updateDoc(doc(db, 'players', myPlayer.id), {
         status: 'Капитан'
       });
+
+      await updateTeamAverageMMR(docRef.id);
       
       setTeamName('');
       setTeamLogo('');
@@ -508,37 +591,7 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const leaveTeam = async () => {
-    if (!myTeam || !myPlayer) return;
-
-    try {
-      const updatedPlayers = myTeam.players.filter((id: string) => id !== myPlayer.id);
-      
-      if (updatedPlayers.length === 0) {
-        await deleteDoc(doc(db, 'teams', myTeam.id));
-      } else {
-        await updateDoc(doc(db, 'teams', myTeam.id), {
-          players: updatedPlayers
-        });
-
-        if (myTeam.captain === myPlayer.id && updatedPlayers.length > 0) {
-          await updateDoc(doc(db, 'teams', myTeam.id), {
-            captain: updatedPlayers[0]
-          });
-        }
-      }
-
-      await updateDoc(doc(db, 'players', myPlayer.id), {
-        status: 'Ищу команду'
-      });
-
-      setSuccessMessage('Вы вышли из команды');
-    } catch (error) {
-      setError('Ошибка выхода из команды');
-    }
-  };
+  }, [myPlayer, myTeam, teams, userEmail, teamName, teamLogo, updateTeamAverageMMR]);
 
   const tabs = [
     { id: 'add-player', label: 'Регистрация' },
@@ -557,6 +610,7 @@ const App: React.FC = () => {
         
         <div style={styles.formGroup}>
           <input
+            autoFocus
             type="text"
             value={userEmail}
             onChange={(e) => setUserEmail(e.target.value)}
@@ -580,15 +634,6 @@ const App: React.FC = () => {
         >
           Войти
         </button>
-
-        <div style={styles.loginHint}>
-          <p>Для доступа организатора используйте один из кодов:</p>
-          <ul style={styles.codesList}>
-            {ORGANIZER_CODES.map((code, index) => (
-              <li key={index} style={styles.codeItem}>{code}</li>
-            ))}
-          </ul>
-        </div>
       </div>
     </div>
   );
@@ -620,6 +665,7 @@ const App: React.FC = () => {
                   onChange={(e) => setTournamentRules(e.target.value)}
                   style={styles.rulesTextarea}
                   rows={15}
+                  autoFocus
                 />
                 <div style={styles.modalActions}>
                   <button 
@@ -630,7 +676,7 @@ const App: React.FC = () => {
                   </button>
                   <button 
                     style={styles.cancelButton}
-                    onClick={() => setEditingRules(false)}
+                    onClick={cancelEditingRules}
                   >
                     Отмена
                   </button>
@@ -642,7 +688,10 @@ const App: React.FC = () => {
                 {isOrganizer && (
                   <button 
                     style={styles.editButton}
-                    onClick={() => setEditingRules(true)}
+                    onClick={() => {
+                      setOriginalRules(tournamentRules);
+                      setEditingRules(true);
+                    }}
                   >
                     Редактировать правила
                   </button>
@@ -845,6 +894,9 @@ const App: React.FC = () => {
                               src={playerData.rankImage} 
                               alt={playerData.rank}
                               style={styles.rankImage}
+                              onError={(e) => {
+                                e.currentTarget.src = rankImages['Unranked'];
+                              }}
                             />
                             <div>
                               <div style={styles.rankName}>{playerData.rank}</div>
@@ -897,6 +949,9 @@ const App: React.FC = () => {
                           src={player.rankImage} 
                           alt={player.rank}
                           style={styles.cardRankImage}
+                          onError={(e) => {
+                            e.currentTarget.src = rankImages['Unranked'];
+                          }}
                         />
                       </div>
                       
@@ -1054,12 +1109,14 @@ const App: React.FC = () => {
                                     <button
                                       onClick={() => processApplication(application.id, 'approved')}
                                       style={styles.approveBtn}
+                                      disabled={processingApplications.has(application.id)}
                                     >
                                       ✓
                                     </button>
                                     <button
                                       onClick={() => processApplication(application.id, 'rejected')}
                                       style={styles.rejectBtn}
+                                      disabled={processingApplications.has(application.id)}
                                     >
                                       ✕
                                     </button>
@@ -1132,26 +1189,6 @@ const styles = {
     color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
     marginBottom: '2rem'
-  },
-  
-  loginHint: {
-    marginTop: '2rem',
-    padding: '1rem',
-    background: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: '8px',
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: '0.9rem'
-  },
-  
-  codesList: {
-    margin: '0.5rem 0',
-    paddingLeft: '1.5rem'
-  },
-  
-  codeItem: {
-    fontSize: '0.8rem',
-    marginBottom: '0.25rem',
-    fontFamily: 'monospace'
   },
   
   header: {
