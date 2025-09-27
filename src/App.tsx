@@ -95,6 +95,60 @@ const ORGANIZER_CODES = [
   'CHAMP-ACCESS-3R6L9Z'
 ];
 
+interface LoginFormProps {
+  userEmail: string;
+  setUserEmail: (value: string) => void;
+  handleLogin: (email: string) => void;
+}
+
+const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLogin }) => {
+  const emailInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (emailInputRef.current) {
+      emailInputRef.current.focus();
+    }
+  }, []);
+
+  return (
+    <div style={styles.loginContainer}>
+      <div style={styles.loginForm}>
+        <h2 style={styles.loginTitle}>Вход в турнир</h2>
+        <p style={styles.loginSubtitle}>
+          Введите ваш email для участия или код организатора
+        </p>
+        
+        <div style={styles.formGroup}>
+          <input
+            ref={emailInputRef}
+            type="text"
+            value={userEmail}
+            onChange={(e) => setUserEmail(e.target.value)}
+            placeholder="your@email.com или код организатора"
+            style={styles.input}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleLogin(userEmail);
+              }
+            }}
+          />
+        </div>
+        
+        <button
+          onClick={() => handleLogin(userEmail)}
+          disabled={!userEmail}
+          style={{
+            ...styles.submitButton,
+            ...(!userEmail && styles.buttonDisabled)
+          }}
+        >
+          Войти
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -122,7 +176,6 @@ const App: React.FC = () => {
   const [processingApplications, setProcessingApplications] = useState<Set<string>>(new Set());
   
   const rulesTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const emailInputRef = useRef<HTMLInputElement>(null);
 
   // Оптимизированные подписки на данные с дебаунсингом
   useEffect(() => {
@@ -176,20 +229,6 @@ const App: React.FC = () => {
       if (applicationsUnsubscribe) applicationsUnsubscribe();
     };
   }, [isAuthenticated]);
-
-  // Автофокус при монтировании
-  useEffect(() => {
-    if (emailInputRef.current && !isAuthenticated) {
-      emailInputRef.current.focus();
-    }
-  }, [isAuthenticated]);
-
-  // Автофокус при редактировании правил
-  useEffect(() => {
-    if (editingRules && rulesTextareaRef.current) {
-      rulesTextareaRef.current.focus();
-    }
-  }, [editingRules]);
 
   // Расчет среднего MMR команды
   const calculateTeamAverageMMR = useCallback((playerIds: string[]): number => {
@@ -670,46 +709,8 @@ const App: React.FC = () => {
     { id: 'bracket', label: 'Турнирная сетка', disabled: true }
   ];
 
-  const LoginForm = () => (
-    <div style={styles.loginContainer}>
-      <div style={styles.loginForm}>
-        <h2 style={styles.loginTitle}>Вход в турнир</h2>
-        <p style={styles.loginSubtitle}>
-          Введите ваш email для участия или код организатора
-        </p>
-        
-        <div style={styles.formGroup}>
-          <input
-            ref={emailInputRef}
-            type="text"
-            value={userEmail}
-            onChange={(e) => setUserEmail(e.target.value)}
-            placeholder="your@email.com или код организатора"
-            style={styles.input}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                handleLogin(userEmail);
-              }
-            }}
-          />
-        </div>
-        
-        <button
-          onClick={() => handleLogin(userEmail)}
-          disabled={!userEmail}
-          style={{
-            ...styles.submitButton,
-            ...(!userEmail && styles.buttonDisabled)
-          }}
-        >
-          Войти
-        </button>
-      </div>
-    </div>
-  );
-
   if (!isAuthenticated) {
-    return <LoginForm />;
+    return <LoginForm userEmail={userEmail} setUserEmail={setUserEmail} handleLogin={handleLogin} />;
   }
 
   return (
