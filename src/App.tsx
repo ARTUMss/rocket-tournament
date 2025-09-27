@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDoc, setDoc, query, where, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 
 // Firebase Config
 const firebaseConfig = {
@@ -53,7 +53,7 @@ interface Application {
   processedAt?: Date;
 }
 
-// Rank images mapping - обновленные ссылки с tracker.gg
+// Rank images mapping - исправленные ссылки
 interface RankImages {
   [key: string]: string;
 }
@@ -120,70 +120,82 @@ const App: React.FC = () => {
   const [myTeam, setMyTeam] = useState<Team | null>(null);
   const [myPlayer, setMyPlayer] = useState<Player | null>(null);
   const [processingApplications, setProcessingApplications] = useState<Set<string>>(new Set());
+  
+  const rulesTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
 
-  // Автоматическое сохранение данных
-  useEffect(() => {
-    const savedEmail = localStorage.getItem('tournament_user_email');
-    const savedOrganizerStatus = localStorage.getItem('tournament_organizer');
-    
-    if (savedEmail) {
-      setUserEmail(savedEmail);
-      setIsAuthenticated(true);
-      
-      if (savedOrganizerStatus === 'true') {
-        setIsOrganizer(true);
-      }
-    }
-  }, []);
-
-  // Оптимизированные подписки на данные
+  // Оптимизированные подписки на данные с дебаунсингом
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const unsubscribePlayers = onSnapshot(collection(db, 'players'), (snapshot) => {
-      const playersData = snapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date()
-      } as Player));
-      setPlayers(playersData);
-    });
+    let playersUnsubscribe: () => void;
+    let teamsUnsubscribe: () => void;
+    let applicationsUnsubscribe: () => void;
 
-    const unsubscribeTeams = onSnapshot(collection(db, 'teams'), (snapshot) => {
-      const teamsData = snapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
-        players: doc.data().players || [],
-        averageMMR: calculateTeamAverageMMR(doc.data().players || [], players)
-      } as Team));
-      setTeams(teamsData);
-    });
+    const initSubscriptions = () => {
+      // Players subscription
+      playersUnsubscribe = onSnapshot(collection(db, 'players'), (snapshot) => {
+        const playersData = snapshot.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate() || new Date()
+        } as Player));
+        setPlayers(playersData);
+      });
 
-    const unsubscribeApplications = onSnapshot(collection(db, 'applications'), (snapshot) => {
-      const applicationsData = snapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
-        processedAt: doc.data().processedAt?.toDate()
-      } as Application));
-      setTeamApplications(applicationsData);
-    });
+      // Teams subscription
+      teamsUnsubscribe = onSnapshot(collection(db, 'teams'), (snapshot) => {
+        const teamsData = snapshot.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate() || new Date(),
+          players: doc.data().players || []
+        } as Team));
+        setTeams(teamsData);
+      });
 
-    loadTournamentRules();
+      // Applications subscription
+      applicationsUnsubscribe = onSnapshot(collection(db, 'applications'), (snapshot) => {
+        const applicationsData = snapshot.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate() || new Date(),
+          processedAt: doc.data().processedAt?.toDate()
+        } as Application));
+        setTeamApplications(applicationsData);
+      });
+    };
+
+    // Задержка для уменьшения нагрузки
+    const timeoutId = setTimeout(initSubscriptions, 100);
 
     return () => {
-      unsubscribePlayers();
-      unsubscribeTeams();
-      unsubscribeApplications();
+      clearTimeout(timeoutId);
+      if (playersUnsubscribe) playersUnsubscribe();
+      if (teamsUnsubscribe) teamsUnsubscribe();
+      if (applicationsUnsubscribe) applicationsUnsubscribe();
     };
-  }, [isAuthenticated, players]);
+  }, [isAuthenticated]);
+
+  // Автофокус при монтировании
+  useEffect(() => {
+    if (emailInputRef.current && !isAuthenticated) {
+      emailInputRef.current.focus();
+    }
+  }, [isAuthenticated]);
+
+  // Автофокус при редактировании правил
+  useEffect(() => {
+    if (editingRules && rulesTextareaRef.current) {
+      rulesTextareaRef.current.focus();
+    }
+  }, [editingRules]);
 
   // Расчет среднего MMR команды
-  const calculateTeamAverageMMR = useCallback((playerIds: string[], allPlayers: Player[]): number => {
+  const calculateTeamAverageMMR = useCallback((playerIds: string[]): number => {
     if (playerIds.length === 0) return 0;
     
-    const teamPlayers = allPlayers.filter(player => playerIds.includes(player.id));
+    const teamPlayers = players.filter(player => playerIds.includes(player.id));
     if (teamPlayers.length === 0) return 0;
     
     const totalMMR = teamPlayers.reduce((sum, player) => {
@@ -192,16 +204,16 @@ const App: React.FC = () => {
     }, 0);
     
     return Math.round(totalMMR / teamPlayers.length);
-  }, []);
+  }, [players]);
 
-  // Обновление среднего MMR при изменении состава команды
+  // Обновление среднего MMR для команд
   useEffect(() => {
     const updatedTeams = teams.map(team => ({
       ...team,
-      averageMMR: calculateTeamAverageMMR(team.players, players)
+      averageMMR: calculateTeamAverageMMR(team.players)
     }));
     setTeams(updatedTeams);
-  }, [players, calculateTeamAverageMMR]);
+  }, [players, teams, calculateTeamAverageMMR]);
 
   // Поиск текущего игрока и команды
   useEffect(() => {
@@ -218,10 +230,29 @@ const App: React.FC = () => {
     }
   }, [userEmail, players, teams]);
 
+  // Загрузка правил турнира
+  const loadTournamentRules = useCallback(async () => {
+    try {
+      const rulesDoc = await getDoc(doc(db, 'settings', 'tournamentRules'));
+      if (rulesDoc.exists()) {
+        setTournamentRules(rulesDoc.data().rules);
+      }
+    } catch (error) {
+      console.error('Error loading tournament rules:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadTournamentRules();
+    }
+  }, [isAuthenticated, loadTournamentRules]);
+
   const handleLogin = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email) && !ORGANIZER_CODES.includes(email)) {
       setError('Введите корректный email адрес или код организатора');
+      setTimeout(() => setError(''), 3000);
       return;
     }
 
@@ -230,6 +261,7 @@ const App: React.FC = () => {
       localStorage.setItem('tournament_organizer', 'true');
       setUserEmail('organizer@tournament.com');
       setSuccessMessage('Режим организатора активирован!');
+      setTimeout(() => setSuccessMessage(''), 3000);
     } else {
       setUserEmail(email);
     }
@@ -250,18 +282,13 @@ const App: React.FC = () => {
     localStorage.removeItem('tournament_organizer');
   };
 
-  const loadTournamentRules = async () => {
-    try {
-      const rulesDoc = await getDoc(doc(db, 'settings', 'tournamentRules'));
-      if (rulesDoc.exists()) {
-        setTournamentRules(rulesDoc.data().rules);
-      }
-    } catch (error) {
-      console.error('Error loading tournament rules:', error);
-    }
-  };
-
   const saveTournamentRules = async () => {
+    if (!tournamentRules.trim()) {
+      setError('Правила не могут быть пустыми');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
     try {
       await setDoc(doc(db, 'settings', 'tournamentRules'), {
         rules: tournamentRules,
@@ -653,6 +680,7 @@ const App: React.FC = () => {
         
         <div style={styles.formGroup}>
           <input
+            ref={emailInputRef}
             type="text"
             value={userEmail}
             onChange={(e) => setUserEmail(e.target.value)}
@@ -663,7 +691,6 @@ const App: React.FC = () => {
                 handleLogin(userEmail);
               }
             }}
-            autoFocus
           />
         </div>
         
@@ -710,22 +737,27 @@ const App: React.FC = () => {
             {isOrganizer && editingRules ? (
               <div>
                 <textarea
+                  ref={rulesTextareaRef}
                   value={tournamentRules}
                   onChange={(e) => setTournamentRules(e.target.value)}
                   style={styles.rulesTextarea}
-                  rows={15}
-                  autoFocus
+                  rows={12}
+                  placeholder="Введите правила турнира..."
                 />
                 <div style={styles.modalActions}>
                   <button 
                     style={styles.saveButton}
                     onClick={saveTournamentRules}
+                    disabled={!tournamentRules.trim()}
                   >
                     Сохранить правила
                   </button>
                   <button 
                     style={styles.cancelButton}
-                    onClick={() => setEditingRules(false)}
+                    onClick={() => {
+                      setEditingRules(false);
+                      loadTournamentRules(); // Восстанавливаем оригинальные правила
+                    }}
                   >
                     Отмена
                   </button>
@@ -733,7 +765,9 @@ const App: React.FC = () => {
               </div>
             ) : (
               <div>
-                <pre style={styles.rulesText}>{tournamentRules}</pre>
+                <div style={styles.rulesTextContainer}>
+                  <pre style={styles.rulesText}>{tournamentRules}</pre>
+                </div>
                 {isOrganizer && (
                   <button 
                     style={styles.editButton}
@@ -1960,12 +1994,22 @@ const styles = {
     justifyContent: 'center'
   },
   
+  rulesTextContainer: {
+    maxHeight: '400px',
+    overflowY: 'auto',
+    padding: '1rem',
+    background: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: '8px',
+    marginBottom: '1rem'
+  },
+  
   rulesText: {
     color: 'white',
     fontSize: '0.9rem',
     lineHeight: '1.5',
     whiteSpace: 'pre-wrap',
-    fontFamily: 'inherit'
+    fontFamily: 'inherit',
+    margin: 0
   },
   
   rulesTextarea: {
@@ -1979,45 +2023,48 @@ const styles = {
     lineHeight: '1.5',
     fontFamily: 'inherit',
     resize: 'vertical',
-    minHeight: '200px'
+    minHeight: '300px',
+    marginBottom: '1rem'
   },
   
   modalActions: {
     display: 'flex',
     gap: '1rem',
-    justifyContent: 'flex-end',
-    marginTop: '1rem'
+    justifyContent: 'flex-end'
   },
   
   saveButton: {
     background: '#10b981',
     color: 'white',
     border: 'none',
-    padding: '0.5rem 1rem',
+    padding: '0.75rem 1.5rem',
     borderRadius: '6px',
     cursor: 'pointer',
-    fontWeight: '500'
+    fontWeight: '500',
+    fontSize: '1rem'
   },
   
   cancelButton: {
     background: 'rgba(255, 255, 255, 0.1)',
     color: 'white',
     border: '1px solid rgba(255, 255, 255, 0.3)',
-    padding: '0.5rem 1rem',
+    padding: '0.75rem 1.5rem',
     borderRadius: '6px',
     cursor: 'pointer',
-    fontWeight: '500'
+    fontWeight: '500',
+    fontSize: '1rem'
   },
   
   editButton: {
     background: 'rgba(255, 255, 255, 0.1)',
     color: 'white',
     border: '1px solid rgba(255, 255, 255, 0.3)',
-    padding: '0.5rem 1rem',
+    padding: '0.75rem 1.5rem',
     borderRadius: '6px',
     cursor: 'pointer',
     fontWeight: '500',
-    marginTop: '1rem'
+    fontSize: '1rem',
+    width: '100%'
   }
 } as const;
 
