@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDoc, setDoc, query, where, writeBatch } from 'firebase/firestore';
 
 // Firebase Config
 const firebaseConfig = {
@@ -53,7 +53,7 @@ interface Application {
   processedAt?: Date;
 }
 
-// Rank images mapping
+// Rank images mapping - обновленные ссылки с tracker.gg
 interface RankImages {
   [key: string]: string;
 }
@@ -112,7 +112,6 @@ const App: React.FC = () => {
   const [playerData, setPlayerData] = useState<any>(null);
   const [showRules, setShowRules] = useState(false);
   const [tournamentRules, setTournamentRules] = useState('Tournament Rules:\n\n1. Team Composition: 3 players per team\n2. Format: Double elimination bracket\n3. Match Rules: Best of 3 for early rounds, Best of 5 for finals\n4. Server Selection: EU servers preferred\n5. Schedule: Matches must be completed within designated timeframes\n\nPlease ensure fair play and good sportsmanship throughout the tournament.');
-  const [originalRules, setOriginalRules] = useState('');
   const [editingRules, setEditingRules] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -120,57 +119,53 @@ const App: React.FC = () => {
   const [teamApplications, setTeamApplications] = useState<Application[]>([]);
   const [myTeam, setMyTeam] = useState<Team | null>(null);
   const [myPlayer, setMyPlayer] = useState<Player | null>(null);
-  const [processingApplications, setProcessingApplications] = useState(new Set<string>());
+  const [processingApplications, setProcessingApplications] = useState<Set<string>>(new Set());
 
+  // Автоматическое сохранение данных
   useEffect(() => {
-    const checkAuth = () => {
-      const savedEmail = localStorage.getItem('tournament_user_email');
-      const savedOrganizerStatus = localStorage.getItem('tournament_organizer');
+    const savedEmail = localStorage.getItem('tournament_user_email');
+    const savedOrganizerStatus = localStorage.getItem('tournament_organizer');
+    
+    if (savedEmail) {
+      setUserEmail(savedEmail);
+      setIsAuthenticated(true);
       
-      if (savedEmail) {
-        setUserEmail(savedEmail);
-        setIsAuthenticated(true);
-        
-        if (savedOrganizerStatus === 'true') {
-          setIsOrganizer(true);
-        }
+      if (savedOrganizerStatus === 'true') {
+        setIsOrganizer(true);
       }
-    };
+    }
+  }, []);
 
-    checkAuth();
+  // Оптимизированные подписки на данные
+  useEffect(() => {
+    if (!isAuthenticated) return;
 
     const unsubscribePlayers = onSnapshot(collection(db, 'players'), (snapshot) => {
       const playersData = snapshot.docs.map(doc => ({ 
         id: doc.id, 
-        ...doc.data() 
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate() || new Date()
       } as Player));
       setPlayers(playersData);
-      
-      // Находим игрока текущего пользователя
-      const userPlayer = playersData.find(p => p.userEmail === userEmail);
-      setMyPlayer(userPlayer || null);
-      
-      if (userPlayer) {
-        findMyTeam(userPlayer.id);
-      }
     });
 
     const unsubscribeTeams = onSnapshot(collection(db, 'teams'), (snapshot) => {
       const teamsData = snapshot.docs.map(doc => ({ 
         id: doc.id, 
-        ...doc.data() 
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate() || new Date(),
+        players: doc.data().players || [],
+        averageMMR: calculateTeamAverageMMR(doc.data().players || [], players)
       } as Team));
       setTeams(teamsData);
-      
-      if (myPlayer) {
-        findMyTeam(myPlayer.id);
-      }
     });
 
     const unsubscribeApplications = onSnapshot(collection(db, 'applications'), (snapshot) => {
       const applicationsData = snapshot.docs.map(doc => ({ 
         id: doc.id, 
-        ...doc.data() 
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate() || new Date(),
+        processedAt: doc.data().processedAt?.toDate()
       } as Application));
       setTeamApplications(applicationsData);
     });
@@ -182,22 +177,54 @@ const App: React.FC = () => {
       unsubscribeTeams();
       unsubscribeApplications();
     };
-  }, [userEmail, myPlayer]);
+  }, [isAuthenticated, players]);
 
-  const findMyTeam = useCallback((playerId: string) => {
-    const userTeam = teams.find(team => team.players.includes(playerId));
-    setMyTeam(userTeam || null);
-  }, [teams]);
+  // Расчет среднего MMR команды
+  const calculateTeamAverageMMR = useCallback((playerIds: string[], allPlayers: Player[]): number => {
+    if (playerIds.length === 0) return 0;
+    
+    const teamPlayers = allPlayers.filter(player => playerIds.includes(player.id));
+    if (teamPlayers.length === 0) return 0;
+    
+    const totalMMR = teamPlayers.reduce((sum, player) => {
+      const mmr = parseInt(player.mmr) || 0;
+      return sum + mmr;
+    }, 0);
+    
+    return Math.round(totalMMR / teamPlayers.length);
+  }, []);
 
-  const handleLogin = useCallback((email: string) => {
-    // Проверка валидности email
+  // Обновление среднего MMR при изменении состава команды
+  useEffect(() => {
+    const updatedTeams = teams.map(team => ({
+      ...team,
+      averageMMR: calculateTeamAverageMMR(team.players, players)
+    }));
+    setTeams(updatedTeams);
+  }, [players, calculateTeamAverageMMR]);
+
+  // Поиск текущего игрока и команды
+  useEffect(() => {
+    if (userEmail && players.length > 0) {
+      const userPlayer = players.find(p => p.userEmail === userEmail);
+      setMyPlayer(userPlayer || null);
+      
+      if (userPlayer) {
+        const userTeam = teams.find(team => team.players.includes(userPlayer.id));
+        setMyTeam(userTeam || null);
+      } else {
+        setMyTeam(null);
+      }
+    }
+  }, [userEmail, players, teams]);
+
+  const handleLogin = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email) && !ORGANIZER_CODES.includes(email)) {
       setError('Введите корректный email адрес или код организатора');
       return;
     }
 
-    // Проверка кода организатора
     if (ORGANIZER_CODES.includes(email)) {
       setIsOrganizer(true);
       localStorage.setItem('tournament_organizer', 'true');
@@ -210,9 +237,9 @@ const App: React.FC = () => {
     setIsAuthenticated(true);
     localStorage.setItem('tournament_user_email', email);
     setError('');
-  }, []);
+  };
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = () => {
     setUserEmail('');
     setIsAuthenticated(false);
     setIsOrganizer(false);
@@ -221,43 +248,37 @@ const App: React.FC = () => {
     setMyPlayer(null);
     localStorage.removeItem('tournament_user_email');
     localStorage.removeItem('tournament_organizer');
-  }, []);
+  };
 
-  const loadTournamentRules = useCallback(async () => {
+  const loadTournamentRules = async () => {
     try {
       const rulesDoc = await getDoc(doc(db, 'settings', 'tournamentRules'));
       if (rulesDoc.exists()) {
-        const rules = rulesDoc.data().rules;
-        setTournamentRules(rules);
-        setOriginalRules(rules);
+        setTournamentRules(rulesDoc.data().rules);
       }
     } catch (error) {
       console.error('Error loading tournament rules:', error);
     }
-  }, []);
+  };
 
-  const saveTournamentRules = useCallback(async () => {
+  const saveTournamentRules = async () => {
     try {
       await setDoc(doc(db, 'settings', 'tournamentRules'), {
         rules: tournamentRules,
         lastUpdated: new Date()
       });
-      setOriginalRules(tournamentRules);
       setEditingRules(false);
       setSuccessMessage('Правила турнира успешно обновлены!');
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка сохранения правил турнира');
+      setTimeout(() => setError(''), 3000);
     }
-  }, [tournamentRules]);
+  };
 
-  const cancelEditingRules = useCallback(() => {
-    setTournamentRules(originalRules);
-    setEditingRules(false);
-  }, [originalRules]);
-
-  const parseTrackerData = useCallback(async (url: string) => {
+  const parseTrackerData = async (url: string) => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 800));
       
       const mockRanks = ['Bronze I', 'Bronze II', 'Bronze III', 'Silver I', 'Silver II', 'Silver III', 
                         'Gold I', 'Gold II', 'Gold III', 'Platinum I', 'Platinum II', 'Platinum III',
@@ -280,11 +301,12 @@ const App: React.FC = () => {
         rankImage: getRankImage('Unranked')
       };
     }
-  }, []);
+  };
 
-  const fetchPlayerData = useCallback(async () => {
+  const fetchPlayerData = async () => {
     if (!nickname || !trackerLink) {
       setError('Заполните никнейм и ссылку на tracker.gg');
+      setTimeout(() => setError(''), 3000);
       return;
     }
     
@@ -301,22 +323,24 @@ const App: React.FC = () => {
       });
     } catch (error) {
       setError('Ошибка получения данных с tracker.gg');
+      setTimeout(() => setError(''), 3000);
     } finally {
       setLoading(false);
     }
-  }, [nickname, trackerLink, platform, parseTrackerData]);
+  };
 
-  const addPlayer = useCallback(async (e: React.FormEvent) => {
+  const addPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!playerData) {
       setError('Сначала получите данные игрока');
+      setTimeout(() => setError(''), 3000);
       return;
     }
 
-    // Проверяем, не зарегистрирован ли уже пользователь
     if (myPlayer) {
       setError('Вы уже зарегистрированы в турнире!');
+      setTimeout(() => setError(''), 3000);
       return;
     }
 
@@ -341,139 +365,115 @@ const App: React.FC = () => {
       setTrackerLink('');
       setPlayerData(null);
       setSuccessMessage('Вы успешно зарегистрированы в турнире!');
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка регистрации в турнире');
+      setTimeout(() => setError(''), 3000);
     } finally {
       setLoading(false);
     }
-  }, [playerData, myPlayer, status, userEmail, trackerLink]);
+  };
 
-  const updateTeamAverageMMR = useCallback(async (teamId: string) => {
-    try {
-      const teamDoc = await getDoc(doc(db, 'teams', teamId));
-      if (!teamDoc.exists()) return;
-
-      const teamData = teamDoc.data() as Team;
-      if (teamData.players.length === 0) {
-        await updateDoc(doc(db, 'teams', teamId), { averageMMR: 0 });
-        return;
-      }
-
-      const playerDocs = await Promise.all(teamData.players.map(pId => getDoc(doc(db, 'players', pId))));
-      const mmrs = playerDocs
-        .map(p => parseInt(p.data()?.mmr || '0', 10))
-        .filter(m => !isNaN(m));
-
-      const avg = mmrs.length > 0 ? Math.round(mmrs.reduce((a, b) => a + b, 0) / mmrs.length) : 0;
-      await updateDoc(doc(db, 'teams', teamId), { averageMMR: avg });
-    } catch (error) {
-      console.error('Error updating team average MMR:', error);
-    }
-  }, []);
-
-  const leaveTeam = useCallback(async () => {
-    if (!myTeam || !myPlayer) return;
-
-    try {
-      const updatedPlayers = myTeam.players.filter((id: string) => id !== myPlayer.id);
-      
-      if (updatedPlayers.length === 0) {
-        await deleteDoc(doc(db, 'teams', myTeam.id));
-      } else {
-        await updateDoc(doc(db, 'teams', myTeam.id), {
-          players: updatedPlayers
-        });
-
-        if (myTeam.captain === myPlayer.id && updatedPlayers.length > 0) {
-          await updateDoc(doc(db, 'teams', myTeam.id), {
-            captain: updatedPlayers[0]
-          });
-        }
-
-        await updateTeamAverageMMR(myTeam.id);
-      }
-
-      await updateDoc(doc(db, 'players', myPlayer.id), {
-        status: 'Ищу команду'
-      });
-
-      setSuccessMessage('Вы вышли из команды');
-    } catch (error) {
-      setError('Ошибка выхода из команды');
-    }
-  }, [myTeam, myPlayer, updateTeamAverageMMR]);
-
-  const deleteMyPlayer = useCallback(async () => {
+  const deleteMyPlayer = async () => {
     if (!myPlayer) return;
 
     try {
-      // Если игрок в команде, выходим из неё
+      const batch = writeBatch(db);
+
       if (myTeam) {
-        await leaveTeam();
+        const updatedPlayers = myTeam.players.filter(id => id !== myPlayer.id);
+        
+        if (updatedPlayers.length === 0) {
+          batch.delete(doc(db, 'teams', myTeam.id));
+        } else {
+          const teamUpdate: any = { players: updatedPlayers };
+          if (myTeam.captain === myPlayer.id) {
+            teamUpdate.captain = updatedPlayers[0];
+          }
+          batch.update(doc(db, 'teams', myTeam.id), teamUpdate);
+        }
       }
 
-      // Удаляем все заявки игрока
       const myApplications = teamApplications.filter(app => app.playerId === myPlayer.id);
-      for (const app of myApplications) {
-        await deleteDoc(doc(db, 'applications', app.id));
-      }
+      myApplications.forEach(app => {
+        batch.delete(doc(db, 'applications', app.id));
+      });
 
-      // Удаляем игрока
-      await deleteDoc(doc(db, 'players', myPlayer.id));
+      batch.delete(doc(db, 'players', myPlayer.id));
+      
+      await batch.commit();
       
       setSuccessMessage('Вы вышли из турнира');
-      setMyPlayer(null);
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка выхода из турнира');
+      setTimeout(() => setError(''), 3000);
     }
-  }, [myPlayer, myTeam, teamApplications, leaveTeam]);
+  };
 
-  const deletePlayer = useCallback(async (playerId: string) => {
+  const deletePlayer = async (playerId: string) => {
     if (!isOrganizer) {
       setError('Только организаторы могут удалять игроков!');
+      setTimeout(() => setError(''), 3000);
       return;
     }
 
     try {
       await deleteDoc(doc(db, 'players', playerId));
       setSuccessMessage('Игрок успешно удален!');
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка удаления игрока');
+      setTimeout(() => setError(''), 3000);
     }
-  }, [isOrganizer]);
+  };
 
-  const deleteTeam = useCallback(async (teamId: string) => {
+  const deleteTeam = async (teamId: string) => {
     if (!isOrganizer) {
       setError('Только организаторы могут удалять команды!');
+      setTimeout(() => setError(''), 3000);
       return;
     }
 
     try {
-      await deleteDoc(doc(db, 'teams', teamId));
+      const batch = writeBatch(db);
+      
+      batch.delete(doc(db, 'teams', teamId));
+      
+      const teamApplicationsToDelete = teamApplications.filter(app => app.teamId === teamId);
+      teamApplicationsToDelete.forEach(app => {
+        batch.delete(doc(db, 'applications', app.id));
+      });
+
+      await batch.commit();
       setSuccessMessage('Команда успешно удалена!');
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка удаления команды');
+      setTimeout(() => setError(''), 3000);
     }
-  }, [isOrganizer]);
+  };
 
-  const sendApplication = useCallback(async (teamId: string) => {
+  const sendApplication = async (teamId: string) => {
     if (!myPlayer) {
       setError('Сначала зарегистрируйтесь в турнире');
+      setTimeout(() => setError(''), 3000);
       return;
     }
 
     if (myTeam) {
       setError('Вы уже состоите в команде!');
+      setTimeout(() => setError(''), 3000);
       return;
     }
 
-    // Проверяем, не отправлял ли уже заявку
     const existingApplication = teamApplications.find(app => 
       app.teamId === teamId && app.playerId === myPlayer.id && app.status === 'pending'
     );
 
     if (existingApplication) {
       setError('Вы уже отправили заявку в эту команду');
+      setTimeout(() => setError(''), 3000);
       return;
     }
 
@@ -489,50 +489,63 @@ const App: React.FC = () => {
       });
       
       setSuccessMessage('Заявка отправлена! Ожидайте решения капитана.');
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка отправки заявки');
+      setTimeout(() => setError(''), 3000);
     }
-  }, [myPlayer, myTeam, teamApplications]);
+  };
 
-  const processApplication = useCallback(async (applicationId: string, status: 'approved' | 'rejected') => {
+  const processApplication = async (applicationId: string, status: 'approved' | 'rejected') => {
     if (processingApplications.has(applicationId)) return;
-
-    setProcessingApplications(prev => {
-      const newSet = new Set(prev);
-      newSet.add(applicationId);
-      return newSet;
-    });
-
+    
+    setProcessingApplications(prev => new Set(prev).add(applicationId));
+    
     try {
       const application = teamApplications.find(app => app.id === applicationId);
       if (!application) return;
 
       if (status === 'approved') {
         const team = teams.find(t => t.id === application.teamId);
-        if (team && team.players.length < 3) {
-          await updateDoc(doc(db, 'teams', application.teamId), {
-            players: [...team.players, application.playerId]
-          });
-          
-          await updateDoc(doc(db, 'players', application.playerId), {
-            status: 'В команде'
-          });
+        if (!team) return;
 
-          await updateTeamAverageMMR(application.teamId);
-        } else {
+        if (team.players.length >= 3) {
           setError('Команда уже заполнена (максимум 3 игрока)');
+          setTimeout(() => setError(''), 3000);
           return;
         }
+
+        const player = players.find(p => p.id === application.playerId);
+        if (!player) return;
+
+        const batch = writeBatch(db);
+
+        batch.update(doc(db, 'teams', application.teamId), {
+          players: [...team.players, application.playerId]
+        });
+        
+        batch.update(doc(db, 'players', application.playerId), {
+          status: 'В команде'
+        });
+
+        batch.update(doc(db, 'applications', applicationId), {
+          status: status,
+          processedAt: new Date()
+        });
+
+        await batch.commit();
+      } else {
+        await updateDoc(doc(db, 'applications', applicationId), {
+          status: status,
+          processedAt: new Date()
+        });
       }
 
-      await updateDoc(doc(db, 'applications', applicationId), {
-        status: status,
-        processedAt: new Date()
-      });
-
       setSuccessMessage(`Заявка ${status === 'approved' ? 'принята' : 'отклонена'}!`);
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка обработки заявки');
+      setTimeout(() => setError(''), 3000);
     } finally {
       setProcessingApplications(prev => {
         const newSet = new Set(prev);
@@ -540,25 +553,27 @@ const App: React.FC = () => {
         return newSet;
       });
     }
-  }, [processingApplications, teamApplications, teams, updateTeamAverageMMR]);
+  };
 
-  const createTeam = useCallback(async (e: React.FormEvent) => {
+  const createTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!myPlayer) {
       setError('Сначала зарегистрируйтесь в турнире');
+      setTimeout(() => setError(''), 3000);
       return;
     }
 
     if (myTeam) {
       setError('Вы уже состоите в команде!');
+      setTimeout(() => setError(''), 3000);
       return;
     }
 
-    // Проверяем, не создал ли уже пользователь команду
     const userCreatedTeam = teams.find(team => team.createdBy === userEmail);
     if (userCreatedTeam) {
       setError('Вы уже создали команду! Одна команда на пользователя.');
+      setTimeout(() => setError(''), 3000);
       return;
     }
 
@@ -567,7 +582,7 @@ const App: React.FC = () => {
     setSuccessMessage('');
 
     try {
-      const docRef = await addDoc(collection(db, 'teams'), {
+      await addDoc(collection(db, 'teams'), {
         name: teamName.trim(),
         logo: teamLogo,
         players: [myPlayer.id],
@@ -580,18 +595,46 @@ const App: React.FC = () => {
       await updateDoc(doc(db, 'players', myPlayer.id), {
         status: 'Капитан'
       });
-
-      await updateTeamAverageMMR(docRef.id);
       
       setTeamName('');
       setTeamLogo('');
       setSuccessMessage('Команда успешно создана! Вы стали капитаном.');
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка создания команды');
+      setTimeout(() => setError(''), 3000);
     } finally {
       setLoading(false);
     }
-  }, [myPlayer, myTeam, teams, userEmail, teamName, teamLogo, updateTeamAverageMMR]);
+  };
+
+  const leaveTeam = async () => {
+    if (!myTeam || !myPlayer) return;
+
+    try {
+      const updatedPlayers = myTeam.players.filter(id => id !== myPlayer.id);
+      
+      if (updatedPlayers.length === 0) {
+        await deleteDoc(doc(db, 'teams', myTeam.id));
+      } else {
+        const teamUpdate: any = { players: updatedPlayers };
+        if (myTeam.captain === myPlayer.id) {
+          teamUpdate.captain = updatedPlayers[0];
+        }
+        await updateDoc(doc(db, 'teams', myTeam.id), teamUpdate);
+      }
+
+      await updateDoc(doc(db, 'players', myPlayer.id), {
+        status: 'Ищу команду'
+      });
+
+      setSuccessMessage('Вы вышли из команды');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error) {
+      setError('Ошибка выхода из команды');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
 
   const tabs = [
     { id: 'add-player', label: 'Регистрация' },
@@ -610,7 +653,6 @@ const App: React.FC = () => {
         
         <div style={styles.formGroup}>
           <input
-            autoFocus
             type="text"
             value={userEmail}
             onChange={(e) => setUserEmail(e.target.value)}
@@ -621,6 +663,7 @@ const App: React.FC = () => {
                 handleLogin(userEmail);
               }
             }}
+            autoFocus
           />
         </div>
         
@@ -646,13 +689,19 @@ const App: React.FC = () => {
     <div style={styles.container}>
       {/* Rules Modal */}
       {showRules && (
-        <div style={styles.modalOverlay} onClick={() => setShowRules(false)}>
+        <div style={styles.modalOverlay} onClick={() => {
+          setShowRules(false);
+          setEditingRules(false);
+        }}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <h2 style={styles.modalTitle}>Tournament Rules</h2>
               <button 
                 style={styles.closeButton}
-                onClick={() => setShowRules(false)}
+                onClick={() => {
+                  setShowRules(false);
+                  setEditingRules(false);
+                }}
               >
                 ×
               </button>
@@ -676,7 +725,7 @@ const App: React.FC = () => {
                   </button>
                   <button 
                     style={styles.cancelButton}
-                    onClick={cancelEditingRules}
+                    onClick={() => setEditingRules(false)}
                   >
                     Отмена
                   </button>
@@ -688,10 +737,7 @@ const App: React.FC = () => {
                 {isOrganizer && (
                   <button 
                     style={styles.editButton}
-                    onClick={() => {
-                      setOriginalRules(tournamentRules);
-                      setEditingRules(true);
-                    }}
+                    onClick={() => setEditingRules(true)}
                   >
                     Редактировать правила
                   </button>
@@ -809,6 +855,9 @@ const App: React.FC = () => {
                     {myTeam && (
                       <div style={styles.teamSection}>
                         <h4>Моя команда: {myTeam.name}</h4>
+                        <div style={styles.teamMMR}>
+                          Средний MMR команды: {myTeam.averageMMR}
+                        </div>
                         <button
                           onClick={leaveTeam}
                           style={styles.leaveTeamBtn}
@@ -895,7 +944,8 @@ const App: React.FC = () => {
                               alt={playerData.rank}
                               style={styles.rankImage}
                               onError={(e) => {
-                                e.currentTarget.src = rankImages['Unranked'];
+                                const target = e.target as HTMLImageElement;
+                                target.src = getRankImage('Unranked');
                               }}
                             />
                             <div>
@@ -950,7 +1000,8 @@ const App: React.FC = () => {
                           alt={player.rank}
                           style={styles.cardRankImage}
                           onError={(e) => {
-                            e.currentTarget.src = rankImages['Unranked'];
+                            const target = e.target as HTMLImageElement;
+                            target.src = getRankImage('Unranked');
                           }}
                         />
                       </div>
@@ -1104,21 +1155,32 @@ const App: React.FC = () => {
                               .filter(app => app.teamId === team.id && app.status === 'pending')
                               .map(application => (
                                 <div key={application.id} style={styles.applicationCard}>
-                                  <span>{application.playerName}</span>
+                                  <div>
+                                    <div style={styles.applicationPlayer}>{application.playerName}</div>
+                                    <div style={styles.applicationDetails}>
+                                      {application.playerRank} ({application.playerMMR} MMR)
+                                    </div>
+                                  </div>
                                   <div>
                                     <button
                                       onClick={() => processApplication(application.id, 'approved')}
-                                      style={styles.approveBtn}
                                       disabled={processingApplications.has(application.id)}
+                                      style={{
+                                        ...styles.approveBtn,
+                                        ...(processingApplications.has(application.id) && styles.buttonDisabled)
+                                      }}
                                     >
-                                      ✓
+                                      {processingApplications.has(application.id) ? '...' : '✓'}
                                     </button>
                                     <button
                                       onClick={() => processApplication(application.id, 'rejected')}
-                                      style={styles.rejectBtn}
                                       disabled={processingApplications.has(application.id)}
+                                      style={{
+                                        ...styles.rejectBtn,
+                                        ...(processingApplications.has(application.id) && styles.buttonDisabled)
+                                      }}
                                     >
-                                      ✕
+                                      {processingApplications.has(application.id) ? '...' : '✕'}
                                     </button>
                                   </div>
                                 </div>
@@ -1714,30 +1776,44 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '0.5rem',
+    padding: '0.75rem',
     background: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: '4px',
+    borderRadius: '6px',
     marginBottom: '0.5rem'
+  },
+  
+  applicationPlayer: {
+    color: 'white',
+    fontWeight: '500'
+  },
+  
+  applicationDetails: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: '0.8rem'
   },
   
   approveBtn: {
     background: '#10b981',
     color: 'white',
     border: 'none',
-    padding: '0.25rem 0.5rem',
+    padding: '0.5rem',
     borderRadius: '4px',
     cursor: 'pointer',
-    marginLeft: '0.5rem'
+    marginLeft: '0.5rem',
+    width: '32px',
+    height: '32px'
   },
   
   rejectBtn: {
     background: 'rgba(239, 68, 68, 0.2)',
     color: '#fca5a5',
     border: '1px solid rgba(239, 68, 68, 0.3)',
-    padding: '0.25rem 0.5rem',
+    padding: '0.5rem',
     borderRadius: '4px',
     cursor: 'pointer',
-    marginLeft: '0.5rem'
+    marginLeft: '0.5rem',
+    width: '32px',
+    height: '32px'
   },
   
   createTeamSection: {
@@ -1776,6 +1852,12 @@ const styles = {
     padding: '1rem',
     background: 'rgba(255, 255, 255, 0.05)',
     borderRadius: '8px'
+  },
+  
+  teamMMR: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: '0.9rem',
+    margin: '0.5rem 0'
   },
   
   leaveTeamBtn: {
