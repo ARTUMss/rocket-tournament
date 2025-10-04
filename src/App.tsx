@@ -53,20 +53,7 @@ interface Application {
   processedAt?: Date;
 }
 
-interface Tournament {
-  id: string;
-  name: string;
-  description: string;
-  startDate: Date;
-  endDate: Date;
-  rules: string;
-  participants: string[];
-  status: 'upcoming' | 'active' | 'completed';
-  maxTeams: number;
-  prizePool: string;
-}
-
-// Rank images mapping
+// Rank images mapping - исправленные ссылки
 interface RankImages {
   [key: string]: string;
 }
@@ -101,20 +88,12 @@ const getRankImage = (rank: string): string => {
   return rankImages[rank] || rankImages['Unranked'];
 };
 
-// Система организаторов с именами
-interface Organizer {
-  code: string;
-  name: string;
-  role: string;
-}
-
-const ORGANIZERS: Organizer[] = [
-  { code: 'RL2024-ORG-7B9X2K', name: 'ARTUM', role: 'Кодер' },
-  { code: 'TOURNEY-MASTER-5F8P', name: 'Sferov', role: 'Руководитель' },
-  { code: 'CHAMP-ACCESS-3R6L9Z', name: 'twinkey', role: 'Организатор' }
+// Уникальные коды для организаторов
+const ORGANIZER_CODES = [
+  'RL2024-ORG-7B9X2K',
+  'TOURNEY-MASTER-5F8P',
+  'CHAMP-ACCESS-3R6L9Z'
 ];
-
-const ORGANIZER_CODES = ORGANIZERS.map(org => org.code);
 
 interface LoginFormProps {
   userEmail: string;
@@ -124,7 +103,6 @@ interface LoginFormProps {
 
 const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLogin }) => {
   const emailInputRef = useRef<HTMLInputElement>(null);
-  const [showOrganizers, setShowOrganizers] = useState(false);
 
   useEffect(() => {
     if (emailInputRef.current) {
@@ -135,7 +113,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
   return (
     <div style={styles.loginContainer}>
       <div style={styles.loginForm}>
-        <h2 style={styles.loginTitle}>Вход в Турнир</h2>
+        <h2 style={styles.loginTitle}>Вход в турнир</h2>
         <p style={styles.loginSubtitle}>
           Введите ваш email для участия или код организатора
         </p>
@@ -166,93 +144,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
         >
           Войти
         </button>
-
-        <div style={styles.organizerHint}>
-          <button 
-            onClick={() => setShowOrganizers(!showOrganizers)}
-            style={styles.organizerToggle}
-          >
-            {showOrganizers ? 'Скрыть коды организаторов' : 'Показать коды организаторов'}
-          </button>
-          
-          {showOrganizers && (
-            <div style={styles.organizerList}>
-              <h4>Коды организаторов:</h4>
-              {ORGANIZERS.map((organizer, index) => (
-                <div key={organizer.code} style={styles.organizerItem}>
-                  <div style={styles.organizerCode}>{organizer.code}</div>
-                  <div style={styles.organizerInfo}>
-                    <span style={styles.organizerName}>{organizer.name}</span>
-                    <span style={styles.organizerRole}> - {organizer.role}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Компонент таймера до турнира
-interface TournamentTimerProps {
-  startDate: Date;
-}
-
-const TournamentTimer: React.FC<TournamentTimerProps> = ({ startDate }) => {
-  const [timeLeft, setTimeLeft] = useState({
-    days: 0,
-    hours: 0,
-    minutes: 0,
-    seconds: 0
-  });
-
-  useEffect(() => {
-    const calculateTimeLeft = () => {
-      const difference = startDate.getTime() - new Date().getTime();
-      
-      if (difference > 0) {
-        return {
-          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-          hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-          minutes: Math.floor((difference / 1000 / 60) % 60),
-          seconds: Math.floor((difference / 1000) % 60)
-        };
-      }
-      
-      return { days: 0, hours: 0, minutes: 0, seconds: 0 };
-    };
-
-    const timer = setInterval(() => {
-      setTimeLeft(calculateTimeLeft());
-    }, 1000);
-
-    setTimeLeft(calculateTimeLeft());
-
-    return () => clearInterval(timer);
-  }, [startDate]);
-
-  return (
-    <div style={styles.timerContainer}>
-      <h3 style={styles.timerTitle}>До начала турнира:</h3>
-      <div style={styles.timerGrid}>
-        <div style={styles.timerUnit}>
-          <span style={styles.timerValue}>{timeLeft.days}</span>
-          <span style={styles.timerLabel}>дней</span>
-        </div>
-        <div style={styles.timerUnit}>
-          <span style={styles.timerValue}>{timeLeft.hours}</span>
-          <span style={styles.timerLabel}>часов</span>
-        </div>
-        <div style={styles.timerUnit}>
-          <span style={styles.timerValue}>{timeLeft.minutes}</span>
-          <span style={styles.timerLabel}>минут</span>
-        </div>
-        <div style={styles.timerUnit}>
-          <span style={styles.timerValue}>{timeLeft.seconds}</span>
-          <span style={styles.timerLabel}>секунд</span>
-        </div>
       </div>
     </div>
   );
@@ -268,57 +159,23 @@ const App: React.FC = () => {
   const [teamName, setTeamName] = useState('');
   const [teamLogo, setTeamLogo] = useState('');
   const [isOrganizer, setIsOrganizer] = useState(false);
-  const [currentOrganizer, setCurrentOrganizer] = useState<Organizer | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [activeTab, setActiveTab] = useState('tournament');
+  const [activeTab, setActiveTab] = useState('add-player');
   const [playerData, setPlayerData] = useState<any>(null);
   const [showRules, setShowRules] = useState(false);
   const [tournamentRules, setTournamentRules] = useState('Tournament Rules:\n\n1. Team Composition: 3 players per team\n2. Format: Double elimination bracket\n3. Match Rules: Best of 3 for early rounds, Best of 5 for finals\n4. Server Selection: EU servers preferred\n5. Schedule: Matches must be completed within designated timeframes\n\nPlease ensure fair play and good sportsmanship throughout the tournament.');
   const [editingRules, setEditingRules] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [organizerCode, setOrganizerCode] = useState('');
   const [teamApplications, setTeamApplications] = useState<Application[]>([]);
   const [myTeam, setMyTeam] = useState<Team | null>(null);
   const [myPlayer, setMyPlayer] = useState<Player | null>(null);
   const [processingApplications, setProcessingApplications] = useState<Set<string>>(new Set());
-  const [isParticipating, setIsParticipating] = useState(false);
   
   const rulesTextareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Данные о предстоящем турнире
-  const upcomingTournament: Tournament = {
-    id: '1',
-    name: 'Rocket League Championship 2024',
-    description: 'Крупнейший турнир по Rocket League этого года! Собери свою команду и поборись за звание чемпиона и призовой фонд.',
-    startDate: new Date('2024-12-15T18:00:00'),
-    endDate: new Date('2024-12-17T22:00:00'),
-    rules: 'Формат: 3v3\nСистема: Double Elimination\nРегистрация: до 14 декабря\nПризовой фонд: $5,000',
-    participants: [],
-    status: 'upcoming',
-    maxTeams: 32,
-    prizePool: '$5,000'
-  };
-
-  // Автоматическое сохранение данных
-  useEffect(() => {
-    const savedEmail = localStorage.getItem('tournament_user_email');
-    const savedOrganizerStatus = localStorage.getItem('tournament_organizer');
-    const savedOrganizer = localStorage.getItem('current_organizer');
-    
-    if (savedEmail) {
-      setUserEmail(savedEmail);
-      setIsAuthenticated(true);
-      
-      if (savedOrganizerStatus === 'true') {
-        setIsOrganizer(true);
-        if (savedOrganizer) {
-          setCurrentOrganizer(JSON.parse(savedOrganizer));
-        }
-      }
-    }
-  }, []);
 
   // Оптимизированные подписки на данные с дебаунсингом
   useEffect(() => {
@@ -373,13 +230,6 @@ const App: React.FC = () => {
     };
   }, [isAuthenticated]);
 
-  // Автофокус при редактировании правил
-  useEffect(() => {
-    if (editingRules && rulesTextareaRef.current) {
-      rulesTextareaRef.current.focus();
-    }
-  }, [editingRules]);
-
   // Расчет среднего MMR команды
   const calculateTeamAverageMMR = useCallback((playerIds: string[]): number => {
     if (playerIds.length === 0) return 0;
@@ -413,10 +263,8 @@ const App: React.FC = () => {
       if (userPlayer) {
         const userTeam = teams.find(team => team.players.includes(userPlayer.id));
         setMyTeam(userTeam || null);
-        setIsParticipating(true);
       } else {
         setMyTeam(null);
-        setIsParticipating(false);
       }
     }
   }, [userEmail, players, teams]);
@@ -448,13 +296,10 @@ const App: React.FC = () => {
     }
 
     if (ORGANIZER_CODES.includes(email)) {
-      const organizer = ORGANIZERS.find(org => org.code === email);
       setIsOrganizer(true);
-      setCurrentOrganizer(organizer || null);
       localStorage.setItem('tournament_organizer', 'true');
-      localStorage.setItem('current_organizer', JSON.stringify(organizer));
       setUserEmail('organizer@tournament.com');
-      setSuccessMessage(`Режим организатора активирован! Добро пожаловать, ${organizer?.name}`);
+      setSuccessMessage('Режим организатора активирован!');
       setTimeout(() => setSuccessMessage(''), 3000);
     } else {
       setUserEmail(email);
@@ -469,25 +314,11 @@ const App: React.FC = () => {
     setUserEmail('');
     setIsAuthenticated(false);
     setIsOrganizer(false);
-    setCurrentOrganizer(null);
+    setOrganizerCode('');
     setMyTeam(null);
     setMyPlayer(null);
-    setIsParticipating(false);
     localStorage.removeItem('tournament_user_email');
     localStorage.removeItem('tournament_organizer');
-    localStorage.removeItem('current_organizer');
-  };
-
-  // Участие в турнире
-  const handleParticipate = () => {
-    if (!myPlayer) {
-      setError('Сначала зарегистрируйтесь как игрок');
-      setTimeout(() => setError(''), 3000);
-      return;
-    }
-    setIsParticipating(true);
-    setSuccessMessage('Вы успешно зарегистрированы на турнир!');
-    setTimeout(() => setSuccessMessage(''), 3000);
   };
 
   const saveTournamentRules = async () => {
@@ -640,7 +471,6 @@ const App: React.FC = () => {
       
       setSuccessMessage('Вы вышли из турнира');
       setTimeout(() => setSuccessMessage(''), 3000);
-      setIsParticipating(false);
     } catch (error) {
       setError('Ошибка выхода из турнира');
       setTimeout(() => setError(''), 3000);
@@ -873,7 +703,6 @@ const App: React.FC = () => {
   };
 
   const tabs = [
-    { id: 'tournament', label: 'Предстоящий турнир' },
     { id: 'add-player', label: 'Регистрация' },
     { id: 'players-list', label: 'Список игроков' },
     { id: 'create-team', label: 'Команды' },
@@ -928,7 +757,7 @@ const App: React.FC = () => {
                     style={styles.cancelButton}
                     onClick={() => {
                       setEditingRules(false);
-                      loadTournamentRules();
+                      loadTournamentRules(); // Восстанавливаем оригинальные правила
                     }}
                   >
                     Отмена
@@ -960,7 +789,7 @@ const App: React.FC = () => {
           <div>
             <h1 style={styles.title}>Rocket League Tournament</h1>
             <p style={styles.subtitle}>
-              {isOrganizer ? `Панель управления - ${currentOrganizer?.name} (${currentOrganizer?.role})` : 'Панель участника турнира'}
+              {isOrganizer ? 'Панель управления турниром' : 'Панель участника турнира'}
             </p>
           </div>
           
@@ -974,13 +803,10 @@ const App: React.FC = () => {
             
             <div style={styles.userInfo}>
               <span style={styles.userEmail}>
-                {isOrganizer ? `Организатор: ${currentOrganizer?.name}` : userEmail}
+                {isOrganizer ? 'Организатор' : userEmail}
               </span>
               {myTeam && (
                 <span style={styles.teamBadge}>{myTeam.name}</span>
-              )}
-              {isParticipating && !isOrganizer && (
-                <span style={styles.participantBadge}>Участник</span>
               )}
               <button 
                 style={styles.logoutButton}
@@ -1034,98 +860,6 @@ const App: React.FC = () => {
         {/* Tab Content */}
         <div style={styles.tabContent}>
           
-          {/* Tournament Tab */}
-          {activeTab === 'tournament' && (
-            <div style={styles.tournamentContainer}>
-              <div style={styles.tournamentHeader}>
-                <h2 style={styles.tournamentTitle}>{upcomingTournament.name}</h2>
-                <div style={styles.tournamentBadge}>
-                  <span style={styles.prizePool}>Призовой фонд: {upcomingTournament.prizePool}</span>
-                  <span style={styles.maxTeams}>Максимум команд: {upcomingTournament.maxTeams}</span>
-                </div>
-              </div>
-
-              <div style={styles.tournamentGrid}>
-                <div style={styles.tournamentInfo}>
-                  <h3 style={styles.sectionTitle}>О турнире</h3>
-                  <p style={styles.tournamentDescription}>{upcomingTournament.description}</p>
-                  
-                  <div style={styles.tournamentDetails}>
-                    <div style={styles.detailItem}>
-                      <strong>Дата начала:</strong> {upcomingTournament.startDate.toLocaleDateString('ru-RU')}
-                    </div>
-                    <div style={styles.detailItem}>
-                      <strong>Дата окончания:</strong> {upcomingTournament.endDate.toLocaleDateString('ru-RU')}
-                    </div>
-                    <div style={styles.detailItem}>
-                      <strong>Формат:</strong> 3v3 Double Elimination
-                    </div>
-                    <div style={styles.detailItem}>
-                      <strong>Регистрация до:</strong> 14 декабря 2024
-                    </div>
-                  </div>
-
-                  {!isParticipating && !isOrganizer ? (
-                    <div style={styles.participationSection}>
-                      <button 
-                        onClick={handleParticipate}
-                        style={styles.participateButton}
-                        disabled={!myPlayer}
-                      >
-                        {myPlayer ? 'Участвовать в турнире!' : 'Сначала зарегистрируйтесь как игрок'}
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={styles.participationStatus}>
-                      <span style={styles.statusBadge}>
-                        {isOrganizer ? 'Организатор' : 'Вы участвуете в турнире!'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div style={styles.timerSection}>
-                  <TournamentTimer startDate={upcomingTournament.startDate} />
-                  
-                  <div style={styles.statsContainer}>
-                    <h4 style={styles.statsTitle}>Статистика турнира</h4>
-                    <div style={styles.statsGrid}>
-                      <div style={styles.statCard}>
-                        <span style={styles.statNumber}>{players.length}</span>
-                        <span style={styles.statLabel}>Зарегистрированных игроков</span>
-                      </div>
-                      <div style={styles.statCard}>
-                        <span style={styles.statNumber}>{teams.length}</span>
-                        <span style={styles.statLabel}>Созданных команд</span>
-                      </div>
-                      <div style={styles.statCard}>
-                        <span style={styles.statNumber}>{upcomingTournament.maxTeams}</span>
-                        <span style={styles.statLabel}>Максимум команд</span>
-                      </div>
-                      <div style={styles.statCard}>
-                        <span style={styles.statNumber}>
-                          {Math.round((teams.length / upcomingTournament.maxTeams) * 100)}%
-                        </span>
-                        <span style={styles.statLabel}>Заполненность</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div style={styles.rulesPreview}>
-                <h3 style={styles.sectionTitle}>Основные правила</h3>
-                <pre style={styles.rulesPreviewText}>{upcomingTournament.rules}</pre>
-                <button 
-                  style={styles.viewRulesButton}
-                  onClick={() => setShowRules(true)}
-                >
-                  Полные правила турнира
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Add Player Tab */}
           {activeTab === 'add-player' && (
             <div style={styles.formContainer}>
@@ -1554,56 +1288,6 @@ const styles = {
     marginBottom: '2rem'
   },
   
-  organizerHint: {
-    marginTop: '2rem',
-    textAlign: 'center' as const
-  },
-  
-  organizerToggle: {
-    background: 'none',
-    border: 'none',
-    color: 'rgba(255, 255, 255, 0.7)',
-    textDecoration: 'underline',
-    cursor: 'pointer',
-    fontSize: '0.9rem'
-  },
-  
-  organizerList: {
-    marginTop: '1rem',
-    padding: '1rem',
-    background: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: '8px',
-    textAlign: 'left' as const
-  },
-  
-  organizerItem: {
-    marginBottom: '0.5rem',
-    padding: '0.5rem',
-    background: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: '4px'
-  },
-  
-  organizerCode: {
-    fontFamily: 'monospace',
-    color: '#10b981',
-    fontSize: '0.8rem',
-    fontWeight: 'bold'
-  },
-  
-  organizerInfo: {
-    marginTop: '0.25rem'
-  },
-  
-  organizerName: {
-    color: 'white',
-    fontWeight: '600'
-  },
-  
-  organizerRole: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: '0.9rem'
-  },
-  
   header: {
     background: 'rgba(255, 255, 255, 0.1)',
     backdropFilter: 'blur(10px)',
@@ -1642,15 +1326,6 @@ const styles = {
     background: 'rgba(59, 130, 246, 0.2)',
     color: '#3b82f6',
     border: '1px solid rgba(59, 130, 246, 0.3)',
-    padding: '0.25rem 0.75rem',
-    borderRadius: '12px',
-    fontSize: '0.8rem'
-  },
-  
-  participantBadge: {
-    background: 'rgba(16, 185, 129, 0.2)',
-    color: '#10b981',
-    border: '1px solid rgba(16, 185, 129, 0.3)',
     padding: '0.25rem 0.75rem',
     borderRadius: '12px',
     fontSize: '0.8rem'
@@ -1769,244 +1444,6 @@ const styles = {
     padding: '2rem'
   },
   
-  // Tournament Page Styles
-  tournamentContainer: {
-    maxWidth: '1000px',
-    margin: '0 auto'
-  },
-  
-  tournamentHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: '2rem',
-    flexWrap: 'wrap' as const,
-    gap: '1rem'
-  },
-  
-  tournamentTitle: {
-    color: 'white',
-    fontSize: '2.5rem',
-    fontWeight: 'bold',
-    margin: 0,
-    flex: 1
-  },
-  
-  tournamentBadge: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '0.5rem',
-    alignItems: 'flex-end'
-  },
-  
-  prizePool: {
-    background: 'linear-gradient(45deg, #f59e0b, #d97706)',
-    color: 'white',
-    padding: '0.5rem 1rem',
-    borderRadius: '20px',
-    fontWeight: '600',
-    fontSize: '0.9rem'
-  },
-  
-  maxTeams: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    color: 'white',
-    padding: '0.5rem 1rem',
-    borderRadius: '20px',
-    fontSize: '0.9rem'
-  },
-  
-  tournamentGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '2rem',
-    marginBottom: '2rem'
-  },
-  
-  tournamentInfo: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    padding: '2rem',
-    borderRadius: '12px',
-    border: '1px solid rgba(255, 255, 255, 0.2)'
-  },
-  
-  sectionTitle: {
-    color: 'white',
-    fontSize: '1.5rem',
-    marginBottom: '1rem',
-    fontWeight: '600'
-  },
-  
-  tournamentDescription: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    lineHeight: '1.6',
-    marginBottom: '1.5rem',
-    fontSize: '1.1rem'
-  },
-  
-  tournamentDetails: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '0.75rem',
-    marginBottom: '2rem'
-  },
-  
-  detailItem: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: '1rem'
-  },
-  
-  participationSection: {
-    textAlign: 'center' as const
-  },
-  
-  participateButton: {
-    background: 'linear-gradient(45deg, #10b981, #059669)',
-    color: 'white',
-    border: 'none',
-    padding: '1rem 2rem',
-    borderRadius: '8px',
-    fontSize: '1.1rem',
-    fontWeight: '600',
-    cursor: 'pointer',
-    transition: 'all 0.3s',
-    minWidth: '300px'
-  },
-  
-  participationStatus: {
-    textAlign: 'center' as const
-  },
-  
-  statusBadge: {
-    background: 'linear-gradient(45deg, #3b82f6, #1d4ed8)',
-    color: 'white',
-    padding: '0.75rem 1.5rem',
-    borderRadius: '20px',
-    fontWeight: '600',
-    fontSize: '1.1rem'
-  },
-  
-  timerSection: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '2rem'
-  },
-  
-  timerContainer: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    padding: '2rem',
-    borderRadius: '12px',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    textAlign: 'center' as const
-  },
-  
-  timerTitle: {
-    color: 'white',
-    fontSize: '1.3rem',
-    marginBottom: '1.5rem',
-    fontWeight: '600'
-  },
-  
-  timerGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
-    gap: '1rem'
-  },
-  
-  timerUnit: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center'
-  },
-  
-  timerValue: {
-    color: 'white',
-    fontSize: '2.5rem',
-    fontWeight: 'bold',
-    background: 'rgba(255, 255, 255, 0.1)',
-    padding: '1rem',
-    borderRadius: '8px',
-    minWidth: '80px',
-    marginBottom: '0.5rem'
-  },
-  
-  timerLabel: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: '0.9rem',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '1px'
-  },
-  
-  statsContainer: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    padding: '2rem',
-    borderRadius: '12px',
-    border: '1px solid rgba(255, 255, 255, 0.2)'
-  },
-  
-  statsTitle: {
-    color: 'white',
-    fontSize: '1.3rem',
-    marginBottom: '1.5rem',
-    fontWeight: '600',
-    textAlign: 'center' as const
-  },
-  
-  statsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, 1fr)',
-    gap: '1rem'
-  },
-  
-  statCard: {
-    background: 'rgba(255, 255, 255, 0.05)',
-    padding: '1.5rem',
-    borderRadius: '8px',
-    textAlign: 'center' as const,
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '0.5rem'
-  },
-  
-  statNumber: {
-    color: 'white',
-    fontSize: '2rem',
-    fontWeight: 'bold'
-  },
-  
-  statLabel: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: '0.9rem'
-  },
-  
-  rulesPreview: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    padding: '2rem',
-    borderRadius: '12px',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    marginTop: '2rem'
-  },
-  
-  rulesPreviewText: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    lineHeight: '1.6',
-    whiteSpace: 'pre-wrap' as const,
-    fontFamily: 'inherit',
-    marginBottom: '1.5rem'
-  },
-  
-  viewRulesButton: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    color: 'white',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    padding: '0.75rem 1.5rem',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '500'
-  },
-
-  // Existing styles for other tabs
   formContainer: {
     maxWidth: '600px',
     margin: '0 auto'
