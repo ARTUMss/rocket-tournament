@@ -458,13 +458,13 @@ const TournamentBracket: React.FC<BracketProps> = ({
         {isOrganizer && (
           <div style={styles.organizerControls}>
             <button onClick={shuffleRandomly} style={styles.controlButton}>
-              🎲 Рандомное распределение
+              Рандомное распределение
             </button>
             <button onClick={sortByMMR} style={styles.controlButton}>
-              📊 Сортировка по MMR
+              Сортировка по MMR
             </button>
             <button onClick={initializeBracket} style={styles.controlButton}>
-              🔄 Сбросить сетку
+              Сбросить сетку
             </button>
           </div>
         )}
