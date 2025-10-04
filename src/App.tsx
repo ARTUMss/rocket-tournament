@@ -99,9 +99,10 @@ interface LoginFormProps {
   userEmail: string;
   setUserEmail: (value: string) => void;
   handleLogin: (email: string) => void;
+  error: string;
 }
 
-const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLogin }) => {
+const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLogin, error }) => {
   const emailInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -115,8 +116,15 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
       <div style={styles.loginForm}>
         <h2 style={styles.loginTitle}>Вход в турнир</h2>
         <p style={styles.loginSubtitle}>
-          Введите ваш emaill для участия или код организатора
+          Введите ваш email для участия или код организатора
         </p>
+        
+        {error && (
+          <div style={styles.errorMessage}>
+            <span>⚠️</span>
+            <span>{error}</span>
+          </div>
+        )}
         
         <div style={styles.formGroup}>
           <input
@@ -125,13 +133,21 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
             value={userEmail}
             onChange={(e) => setUserEmail(e.target.value)}
             placeholder="your@email.com или код организатора"
-            style={styles.input}
+            style={{
+              ...styles.input,
+              ...(error && styles.inputError)
+            }}
             onKeyPress={(e) => {
               if (e.key === 'Enter') {
                 handleLogin(userEmail);
               }
             }}
           />
+          {error && (
+            <div style={styles.errorHint}>
+              Пример корректного email: example@domain.com
+            </div>
+          )}
         </div>
         
         <button
@@ -176,6 +192,21 @@ const App: React.FC = () => {
   const [processingApplications, setProcessingApplications] = useState<Set<string>>(new Set());
   
   const rulesTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Восстановление состояния аутентификации при загрузке
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('tournament_user_email');
+    const savedOrganizer = localStorage.getItem('tournament_organizer');
+    
+    if (savedEmail) {
+      setUserEmail(savedEmail);
+      setIsAuthenticated(true);
+      
+      if (savedOrganizer === 'true') {
+        setIsOrganizer(true);
+      }
+    }
+  }, []);
 
   // Оптимизированные подписки на данные с дебаунсингом
   useEffect(() => {
@@ -287,24 +318,33 @@ const App: React.FC = () => {
     }
   }, [isAuthenticated, loadTournamentRules]);
 
-  const handleLogin = (email: string) => {
+  // Улучшенная валидация email
+  const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email) && !ORGANIZER_CODES.includes(email)) {
-      setError('Введите корректный email адрес или код организатора');
-      setTimeout(() => setError(''), 3000);
-      return;
-    }
+    return emailRegex.test(email);
+  };
 
+  const handleLogin = (email: string) => {
+    // Проверка на код организатора
     if (ORGANIZER_CODES.includes(email)) {
       setIsOrganizer(true);
       localStorage.setItem('tournament_organizer', 'true');
       setUserEmail('organizer@tournament.com');
+      setIsAuthenticated(true);
+      localStorage.setItem('tournament_user_email', 'organizer@tournament.com');
       setSuccessMessage('Режим организатора активирован!');
       setTimeout(() => setSuccessMessage(''), 3000);
-    } else {
-      setUserEmail(email);
+      setError('');
+      return;
     }
-    
+
+    // Строгая валидация email
+    if (!validateEmail(email)) {
+      setError('Пожалуйста, введите корректный email адрес. Пример: example@domain.com');
+      return;
+    }
+
+    setUserEmail(email);
     setIsAuthenticated(true);
     localStorage.setItem('tournament_user_email', email);
     setError('');
@@ -710,7 +750,7 @@ const App: React.FC = () => {
   ];
 
   if (!isAuthenticated) {
-    return <LoginForm userEmail={userEmail} setUserEmail={setUserEmail} handleLogin={handleLogin} />;
+    return <LoginForm userEmail={userEmail} setUserEmail={setUserEmail} handleLogin={handleLogin} error={error} />;
   }
 
   return (
@@ -1494,6 +1534,17 @@ const styles = {
     color: 'white',
     fontSize: '1rem',
     fontWeight: '500'
+  },
+  
+  inputError: {
+    borderColor: '#ef4444',
+    background: 'rgba(239, 68, 68, 0.1)'
+  },
+  
+  errorHint: {
+    color: '#fca5a5',
+    fontSize: '0.8rem',
+    marginTop: '0.25rem'
   },
   
   selectContainer: {
