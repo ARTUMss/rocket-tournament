@@ -80,7 +80,7 @@ const rankImages: RankImages = {
   'Champion III': 'https://trackercdn.com/cdn/tracker.gg/rocket-league/ranks/s4-18.png',
   'Grand Champion I': 'https://trackercdn.com/cdn/tracker.gg/rocket-league/ranks/s4-19.png',
   'Grand Champion II': 'https://trackercdn.com/cdn/tracker.gg/rocket-league/ranks/s4-20.png',
-  'Grand Champion III': 'https://trackercdn.com/cdn/tracker.gg/rocket-league/ranks/s4-21.png',
+  'Grand Champion III': 'https://trackercdn.com/cdn/tracker.gg/rocket-league/ranks/s15rank21.png',
   'Supersonic Legend': 'https://trackercdn.com/cdn/tracker.gg/rocket-league/ranks/s4-22.png'
 };
 
