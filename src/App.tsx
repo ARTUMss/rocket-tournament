@@ -126,7 +126,6 @@ interface LoginFormProps {
 
 const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLogin, error }) => {
   const emailInputRef = useRef<HTMLInputElement>(null);
-  const [showOrganizers, setShowOrganizers] = useState(false);
 
   useEffect(() => {
     if (emailInputRef.current) {
@@ -139,12 +138,12 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
       <div style={styles.loginForm}>
         <h2 style={styles.loginTitle}>Вход в турнир</h2>
         <p style={styles.loginSubtitle}>
-          Введите ваш email для участия или код организатора
+          Введите ваш email для участия в турнире
         </p>
         
         {error && (
           <div style={styles.errorMessage}>
-            <span>⚠️</span>
+            <span style={styles.errorIcon}>!</span>
             <span>{error}</span>
           </div>
         )}
@@ -155,7 +154,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
             type="text"
             value={userEmail}
             onChange={(e) => setUserEmail(e.target.value)}
-            placeholder="your@email.com или код организатора"
+            placeholder="your@email.com"
             style={{
               ...styles.input,
               ...(error && styles.inputError)
@@ -172,33 +171,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
             </div>
           )}
         </div>
-
-        <div style={styles.organizerSection}>
-          <button
-            type="button"
-            onClick={() => setShowOrganizers(!showOrganizers)}
-            style={styles.organizerToggle}
-          >
-            {showOrganizers ? 'Скрыть коды организаторов' : 'Показать коды организаторов'}
-          </button>
-          
-          {showOrganizers && (
-            <div style={styles.organizerList}>
-              <h4 style={styles.organizerTitle}>Коды организаторов:</h4>
-              {ORGANIZERS.map((organizer, index) => (
-                <div key={organizer.code} style={styles.organizerItem}>
-                  <div style={styles.organizerCode}>{organizer.code}</div>
-                  <div style={{
-                    ...styles.organizerInfo,
-                    color: organizer.color
-                  }}>
-                    {organizer.name} - {organizer.role}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
         
         <button
           onClick={() => handleLogin(userEmail)}
@@ -208,8 +180,12 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
             ...(!userEmail && styles.buttonDisabled)
           }}
         >
-          Войти
+          Войти в турнир
         </button>
+
+        <div style={styles.organizerHint}>
+          <p>Для организаторов: используйте специальный код доступа</p>
+        </div>
       </div>
     </div>
   );
@@ -397,7 +373,7 @@ const TournamentBracket: React.FC<BracketProps> = ({
               </div>
             ) : (
               <div style={styles.emptySlot}>
-                {isOrganizer ? 'Перетащите сюда' : 'Пусто'}
+                {isOrganizer ? 'Перетащите сюда' : 'Ожидание игрока'}
               </div>
             )}
           </div>
@@ -420,7 +396,7 @@ const TournamentBracket: React.FC<BracketProps> = ({
               </div>
             ) : (
               <div style={styles.emptySlot}>
-                {isOrganizer ? 'Перетащите сюда' : 'Пусто'}
+                {isOrganizer ? 'Перетащите сюда' : 'Ожидание игрока'}
               </div>
             )}
           </div>
@@ -458,7 +434,7 @@ const TournamentBracket: React.FC<BracketProps> = ({
         {isOrganizer && (
           <div style={styles.organizerControls}>
             <button onClick={shuffleRandomly} style={styles.controlButton}>
-              Рандомное распределение
+              Случайное распределение
             </button>
             <button onClick={sortByMMR} style={styles.controlButton}>
               Сортировка по MMR
@@ -506,7 +482,7 @@ const TournamentBracket: React.FC<BracketProps> = ({
 
       {matches.length === 0 && (
         <div style={styles.emptyBracket}>
-          <div style={styles.emptyBracketIcon}>🏆</div>
+          <div style={styles.emptyBracketIcon}>Т</div>
           <p style={styles.emptyBracketText}>
             {tournamentMode === '1vs1' 
               ? 'Недостаточно игроков для создания сетки' 
@@ -529,17 +505,17 @@ const App: React.FC = () => {
   const [teamName, setTeamName] = useState('');
   const [teamLogo, setTeamLogo] = useState('');
   const [isOrganizer, setIsOrganizer] = useState(false);
+  const [currentOrganizer, setCurrentOrganizer] = useState<OrganizerInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [activeTab, setActiveTab] = useState('add-player');
   const [playerData, setPlayerData] = useState<any>(null);
   const [showRules, setShowRules] = useState(false);
-  const [tournamentRules, setTournamentRules] = useState('Tournament Rules:\n\n1. Team Composition: 3 players per team\n2. Format: Double elimination bracket\n3. Match Rules: Best of 3 for early rounds, Best of 5 for finals\n4. Server Selection: EU servers preferred\n5. Schedule: Matches must be completed within designated timeframes\n\nPlease ensure fair play and good sportsmanship throughout the tournament.');
+  const [tournamentRules, setTournamentRules] = useState('Правила турнира:\n\n1. Состав команды: 3 игрока в команде\n2. Формат: Двойная элиминация\n3. Правила матчей: Best of 3 для ранних раундов, Best of 5 для финала\n4. Выбор сервера: Предпочтительно EU серверы\n5. Расписание: Матчи должны быть завершены в установленные сроки\n\nПожалуйста, обеспечивайте честную игру и хорошее спортивное поведение на протяжении всего турнира.');
   const [editingRules, setEditingRules] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [organizerCode, setOrganizerCode] = useState('');
   const [teamApplications, setTeamApplications] = useState<Application[]>([]);
   const [myTeam, setMyTeam] = useState<Team | null>(null);
   const [myPlayer, setMyPlayer] = useState<Player | null>(null);
@@ -552,13 +528,15 @@ const App: React.FC = () => {
   useEffect(() => {
     const savedEmail = localStorage.getItem('tournament_user_email');
     const savedOrganizer = localStorage.getItem('tournament_organizer');
+    const savedOrganizerInfo = localStorage.getItem('tournament_organizer_info');
     
     if (savedEmail) {
       setUserEmail(savedEmail);
       setIsAuthenticated(true);
       
-      if (savedOrganizer === 'true') {
+      if (savedOrganizer === 'true' && savedOrganizerInfo) {
         setIsOrganizer(true);
+        setCurrentOrganizer(JSON.parse(savedOrganizerInfo));
       }
     }
   }, []);
@@ -684,10 +662,12 @@ const App: React.FC = () => {
     const organizerInfo = ORGANIZERS.find(org => org.code === email);
     if (organizerInfo) {
       setIsOrganizer(true);
+      setCurrentOrganizer(organizerInfo);
       localStorage.setItem('tournament_organizer', 'true');
-      setUserEmail(`organizer-${organizerInfo.name.toLowerCase()}@tournament.com`);
+      localStorage.setItem('tournament_organizer_info', JSON.stringify(organizerInfo));
+      setUserEmail(`${organizerInfo.name}@tournament.com`);
       setIsAuthenticated(true);
-      localStorage.setItem('tournament_user_email', `organizer-${organizerInfo.name.toLowerCase()}@tournament.com`);
+      localStorage.setItem('tournament_user_email', `${organizerInfo.name}@tournament.com`);
       setSuccessMessage(`Режим организатора активирован! (${organizerInfo.name} - ${organizerInfo.role})`);
       setTimeout(() => setSuccessMessage(''), 5000);
       setError('');
@@ -710,11 +690,12 @@ const App: React.FC = () => {
     setUserEmail('');
     setIsAuthenticated(false);
     setIsOrganizer(false);
-    setOrganizerCode('');
+    setCurrentOrganizer(null);
     setMyTeam(null);
     setMyPlayer(null);
     localStorage.removeItem('tournament_user_email');
     localStorage.removeItem('tournament_organizer');
+    localStorage.removeItem('tournament_organizer_info');
   };
 
   const saveTournamentRules = async () => {
@@ -1119,7 +1100,7 @@ const App: React.FC = () => {
         }}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalHeader}>
-              <h2 style={styles.modalTitle}>Tournament Rules</h2>
+              <h2 style={styles.modalTitle}>Правила турнира</h2>
               <button 
                 style={styles.closeButton}
                 onClick={() => {
@@ -1185,7 +1166,7 @@ const App: React.FC = () => {
           <div>
             <h1 style={styles.title}>Rocket League Tournament</h1>
             <p style={styles.subtitle}>
-              {isOrganizer ? 'Панель управления турниром' : 'Панель участника турнира'}
+              {isOrganizer ? `Панель управления турниром - ${currentOrganizer?.role}` : 'Панель участника турнира'}
             </p>
           </div>
           
@@ -1194,12 +1175,15 @@ const App: React.FC = () => {
               style={styles.rulesButton}
               onClick={() => setShowRules(true)}
             >
-              Tournament Rules
+              Правила турнира
             </button>
             
             <div style={styles.userInfo}>
-              <span style={styles.userEmail}>
-                {isOrganizer ? 'Организатор' : userEmail}
+              <span style={{
+                ...styles.userEmail,
+                ...(currentOrganizer && { color: currentOrganizer.color })
+              }}>
+                {isOrganizer ? `${currentOrganizer?.name} (${currentOrganizer?.role})` : userEmail}
               </span>
               {myTeam && (
                 <span style={styles.teamBadge}>{myTeam.name}</span>
@@ -1238,14 +1222,14 @@ const App: React.FC = () => {
         {/* Messages */}
         {error && (
           <div style={styles.errorMessage}>
-            <span>⚠️</span>
+            <span style={styles.errorIcon}>!</span>
             <span>{error}</span>
           </div>
         )}
 
         {successMessage && (
           <div style={styles.successMessage}>
-            <span>✅</span>
+            <span style={styles.successIcon}>✓</span>
             <span>{successMessage}</span>
           </div>
         )}
@@ -1411,7 +1395,7 @@ const App: React.FC = () => {
               
               {players.length === 0 ? (
                 <div style={styles.emptyState}>
-                  <div style={styles.emptyIcon}>👤</div>
+                  <div style={styles.emptyIcon}>И</div>
                   <p style={styles.emptyText}>Пока нет зарегистрированных игроков</p>
                 </div>
               ) : (
@@ -1512,7 +1496,7 @@ const App: React.FC = () => {
 
               {teams.length === 0 ? (
                 <div style={styles.emptyState}>
-                  <div style={styles.emptyIcon}>🏆</div>
+                  <div style={styles.emptyIcon}>К</div>
                   <p style={styles.emptyText}>Пока нет созданных команд</p>
                 </div>
               ) : (
@@ -1543,7 +1527,7 @@ const App: React.FC = () => {
                               <div key={id} style={styles.teamPlayer}>
                                 <span style={styles.teamPlayerName}>
                                   {player.nickname}
-                                  {id === team.captain && ' 👑'}
+                                  {id === team.captain && ' (К)'}
                                 </span>
                                 <span>{player.rank} ({player.mmr})</span>
                               </div>
@@ -1598,7 +1582,7 @@ const App: React.FC = () => {
                                         ...(processingApplications.has(application.id) && styles.buttonDisabled)
                                       }}
                                     >
-                                      {processingApplications.has(application.id) ? '...' : '✓'}
+                                      {processingApplications.has(application.id) ? '...' : 'Принять'}
                                     </button>
                                     <button
                                       onClick={() => processApplication(application.id, 'rejected')}
@@ -1608,7 +1592,7 @@ const App: React.FC = () => {
                                         ...(processingApplications.has(application.id) && styles.buttonDisabled)
                                       }}
                                     >
-                                      {processingApplications.has(application.id) ? '...' : '✕'}
+                                      {processingApplications.has(application.id) ? '...' : 'Отклонить'}
                                     </button>
                                   </div>
                                 </div>
@@ -1679,52 +1663,18 @@ const styles = {
     marginBottom: '2rem'
   },
   
-  organizerSection: {
-    marginBottom: '1.5rem'
-  },
-  
-  organizerToggle: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    color: 'white',
-    padding: '0.5rem 1rem',
+  organizerHint: {
+    marginTop: '1.5rem',
+    padding: '1rem',
+    background: 'rgba(255, 255, 255, 0.05)',
     borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '0.8rem',
-    width: '100%',
-    marginBottom: '1rem'
-  },
-  
-  organizerList: {
-    background: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: '8px',
-    padding: '1rem'
-  },
-  
-  organizerTitle: {
-    color: 'white',
-    fontSize: '0.9rem',
-    marginBottom: '0.75rem',
     textAlign: 'center'
   },
   
-  organizerItem: {
-    marginBottom: '0.75rem',
-    padding: '0.5rem',
-    background: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: '4px'
-  },
-  
-  organizerCode: {
-    color: 'white',
+  organizerHintText: {
+    color: 'rgba(255, 255, 255, 0.6)',
     fontSize: '0.8rem',
-    fontWeight: '600',
-    marginBottom: '0.25rem'
-  },
-  
-  organizerInfo: {
-    fontSize: '0.75rem',
-    fontWeight: '500'
+    margin: 0
   },
   
   header: {
@@ -1758,7 +1708,7 @@ const styles = {
   
   userEmail: {
     fontSize: '0.9rem',
-    opacity: '0.8'
+    fontWeight: '500'
   },
   
   teamBadge: {
@@ -1853,6 +1803,19 @@ const styles = {
     gap: '0.5rem'
   },
   
+  errorIcon: {
+    background: '#ef4444',
+    color: 'white',
+    borderRadius: '50%',
+    width: '20px',
+    height: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '12px',
+    fontWeight: 'bold'
+  },
+  
   successMessage: {
     background: 'rgba(16, 185, 129, 0.1)',
     border: '1px solid rgba(16, 185, 129, 0.3)',
@@ -1863,6 +1826,19 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '0.5rem'
+  },
+  
+  successIcon: {
+    background: '#10b981',
+    color: 'white',
+    borderRadius: '50%',
+    width: '20px',
+    height: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '12px',
+    fontWeight: 'bold'
   },
   
   tabContent: {
@@ -2053,7 +2029,8 @@ const styles = {
   
   emptyIcon: {
     fontSize: '4rem',
-    marginBottom: '1rem'
+    marginBottom: '1rem',
+    opacity: '0.5'
   },
   
   emptyText: {
@@ -2271,24 +2248,22 @@ const styles = {
     background: '#10b981',
     color: 'white',
     border: 'none',
-    padding: '0.5rem',
+    padding: '0.5rem 1rem',
     borderRadius: '4px',
     cursor: 'pointer',
     marginLeft: '0.5rem',
-    width: '32px',
-    height: '32px'
+    fontSize: '0.8rem'
   },
   
   rejectBtn: {
     background: 'rgba(239, 68, 68, 0.2)',
     color: '#fca5a5',
     border: '1px solid rgba(239, 68, 68, 0.3)',
-    padding: '0.5rem',
+    padding: '0.5rem 1rem',
     borderRadius: '4px',
     cursor: 'pointer',
     marginLeft: '0.5rem',
-    width: '32px',
-    height: '32px'
+    fontSize: '0.8rem'
   },
   
   createTeamSection: {
@@ -2540,7 +2515,8 @@ const styles = {
   
   emptyBracketIcon: {
     fontSize: '4rem',
-    marginBottom: '1rem'
+    marginBottom: '1rem',
+    opacity: '0.5'
   },
   
   emptyBracketText: {
