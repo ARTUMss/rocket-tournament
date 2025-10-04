@@ -135,7 +135,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
   return (
     <div style={styles.loginContainer}>
       <div style={styles.loginForm}>
-        <h2 style={styles.loginTitle}>Вход в турнир</h2>
+        <h2 style={styles.loginTitle}>Вход в Турнир</h2>
         <p style={styles.loginSubtitle}>
           Введите ваш email для участия или код организатора
         </p>
