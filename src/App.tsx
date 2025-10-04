@@ -198,7 +198,6 @@ interface BracketProps {
   isOrganizer: boolean;
   tournamentMode: '1vs1' | '3vs3';
   onModeChange: (mode: '1vs1' | '3vs3') => void;
-  locked?: boolean;
 }
 
 const TournamentBracket: React.FC<BracketProps> = ({ 
@@ -1083,8 +1082,8 @@ const App: React.FC = () => {
   const tabs = [
     { id: 'add-player', label: 'Регистрация' },
     { id: 'players-list', label: 'Список игроков' },
-    { id: 'create-team', label: 'Команды' },
-    { id: 'bracket', label: 'Турнирная сетка' }
+    { id: 'create-team', label: 'Команды', disabled: true },
+    { id: 'bracket', label: 'Турнирная сетка', disabled: true }
   ];
 
   if (!isAuthenticated) {
