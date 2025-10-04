@@ -53,6 +53,26 @@ interface Application {
   processedAt?: Date;
 }
 
+interface TournamentMatch {
+  id: string;
+  round: number;
+  matchNumber: number;
+  player1?: string;
+  player2?: string;
+  team1?: string;
+  team2?: string;
+  winner?: string;
+  score?: string;
+  completed: boolean;
+}
+
+interface OrganizerInfo {
+  code: string;
+  name: string;
+  role: string;
+  color: string;
+}
+
 // Rank images mapping - исправленные ссылки
 interface RankImages {
   [key: string]: string;
@@ -80,7 +100,7 @@ const rankImages: RankImages = {
   'Champion III': 'https://trackercdn.com/cdn/tracker.gg/rocket-league/ranks/s4-18.png',
   'Grand Champion I': 'https://trackercdn.com/cdn/tracker.gg/rocket-league/ranks/s4-19.png',
   'Grand Champion II': 'https://trackercdn.com/cdn/tracker.gg/rocket-league/ranks/s4-20.png',
-  'Grand Champion III': 'https://trackercdn.com/cdn/tracker.gg/rocket-league/ranks/s4-3.png',
+  'Grand Champion III': 'https://trackercdn.com/cdn/tracker.gg/rocket-league/ranks/s4-21.png',
   'Supersonic Legend': 'https://trackercdn.com/cdn/tracker.gg/rocket-league/ranks/s4-22.png'
 };
 
@@ -88,12 +108,14 @@ const getRankImage = (rank: string): string => {
   return rankImages[rank] || rankImages['Unranked'];
 };
 
-// Уникальные коды для организаторов
-const ORGANIZER_CODES = [
-  'RL2024-ORG-7B9X2K',
-  'TOURNEY-MASTER-5F8P',
-  'CHAMP-ACCESS-3R6L9Z'
+// Организаторы с дополнительной информацией
+const ORGANIZERS: OrganizerInfo[] = [
+  { code: 'RL2024-ORG-7B9X2K', name: 'ARTUM', role: 'Кодер', color: '#ef4444' },
+  { code: 'TOURNEY-MASTER-5F8P', name: 'Sferov', role: 'Руководитель', color: '#3b82f6' },
+  { code: 'CHAMP-ACCESS-3R6L9Z', name: 'twinkey', role: 'Организатор', color: '#10b981' }
 ];
+
+const ORGANIZER_CODES = ORGANIZERS.map(org => org.code);
 
 interface LoginFormProps {
   userEmail: string;
@@ -104,6 +126,7 @@ interface LoginFormProps {
 
 const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLogin, error }) => {
   const emailInputRef = useRef<HTMLInputElement>(null);
+  const [showOrganizers, setShowOrganizers] = useState(false);
 
   useEffect(() => {
     if (emailInputRef.current) {
@@ -149,6 +172,33 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
             </div>
           )}
         </div>
+
+        <div style={styles.organizerSection}>
+          <button
+            type="button"
+            onClick={() => setShowOrganizers(!showOrganizers)}
+            style={styles.organizerToggle}
+          >
+            {showOrganizers ? 'Скрыть коды организаторов' : 'Показать коды организаторов'}
+          </button>
+          
+          {showOrganizers && (
+            <div style={styles.organizerList}>
+              <h4 style={styles.organizerTitle}>Коды организаторов:</h4>
+              {ORGANIZERS.map((organizer, index) => (
+                <div key={organizer.code} style={styles.organizerItem}>
+                  <div style={styles.organizerCode}>{organizer.code}</div>
+                  <div style={{
+                    ...styles.organizerInfo,
+                    color: organizer.color
+                  }}>
+                    {organizer.name} - {organizer.role}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         
         <button
           onClick={() => handleLogin(userEmail)}
@@ -161,6 +211,310 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
           Войти
         </button>
       </div>
+    </div>
+  );
+};
+
+// Компонент турнирной сетки
+interface BracketProps {
+  players: Player[];
+  teams: Team[];
+  isOrganizer: boolean;
+  tournamentMode: '1vs1' | '3vs3';
+  onModeChange: (mode: '1vs1' | '3vs3') => void;
+}
+
+const TournamentBracket: React.FC<BracketProps> = ({ 
+  players, 
+  teams, 
+  isOrganizer,
+  tournamentMode,
+  onModeChange 
+}) => {
+  const [matches, setMatches] = useState<TournamentMatch[]>([]);
+  const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
+  const [draggedTeam, setDraggedTeam] = useState<string | null>(null);
+
+  // Инициализация сетки
+  const initializeBracket = useCallback(() => {
+    if (tournamentMode === '1vs1') {
+      const participantCount = players.length;
+      const bracketSize = Math.pow(2, Math.ceil(Math.log2(participantCount)));
+      const newMatches: TournamentMatch[] = [];
+      
+      let matchId = 1;
+      for (let i = 0; i < bracketSize / 2; i++) {
+        newMatches.push({
+          id: `match-${matchId++}`,
+          round: 1,
+          matchNumber: i + 1,
+          completed: false
+        });
+      }
+      
+      setMatches(newMatches);
+    } else {
+      const teamCount = teams.length;
+      const bracketSize = Math.pow(2, Math.ceil(Math.log2(teamCount)));
+      const newMatches: TournamentMatch[] = [];
+      
+      let matchId = 1;
+      for (let i = 0; i < bracketSize / 2; i++) {
+        newMatches.push({
+          id: `match-${matchId++}`,
+          round: 1,
+          matchNumber: i + 1,
+          completed: false
+        });
+      }
+      
+      setMatches(newMatches);
+    }
+  }, [players.length, teams.length, tournamentMode]);
+
+  useEffect(() => {
+    initializeBracket();
+  }, [initializeBracket]);
+
+  // Функции распределения
+  const shuffleRandomly = () => {
+    if (tournamentMode === '1vs1') {
+      const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
+      const newMatches = matches.map((match, index) => ({
+        ...match,
+        player1: shuffledPlayers[index * 2]?.id,
+        player2: shuffledPlayers[index * 2 + 1]?.id
+      }));
+      setMatches(newMatches);
+    } else {
+      const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
+      const newMatches = matches.map((match, index) => ({
+        ...match,
+        team1: shuffledTeams[index * 2]?.id,
+        team2: shuffledTeams[index * 2 + 1]?.id
+      }));
+      setMatches(newMatches);
+    }
+  };
+
+  const sortByMMR = () => {
+    if (tournamentMode === '1vs1') {
+      const sortedPlayers = [...players].sort((a, b) => 
+        (parseInt(b.mmr) || 0) - (parseInt(a.mmr) || 0)
+      );
+      const newMatches = matches.map((match, index) => ({
+        ...match,
+        player1: sortedPlayers[index * 2]?.id,
+        player2: sortedPlayers[index * 2 + 1]?.id
+      }));
+      setMatches(newMatches);
+    } else {
+      const sortedTeams = [...teams].sort((a, b) => b.averageMMR - a.averageMMR);
+      const newMatches = matches.map((match, index) => ({
+        ...match,
+        team1: sortedTeams[index * 2]?.id,
+        team2: sortedTeams[index * 2 + 1]?.id
+      }));
+      setMatches(newMatches);
+    }
+  };
+
+  // Drag and Drop функции
+  const handleDragStart = (playerId: string, teamId: string | null = null) => {
+    if (playerId) setDraggedPlayer(playerId);
+    if (teamId) setDraggedTeam(teamId);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (matchId: string, slot: 'player1' | 'player2' | 'team1' | 'team2') => {
+    const matchIndex = matches.findIndex(m => m.id === matchId);
+    if (matchIndex === -1) return;
+
+    const updatedMatches = [...matches];
+    
+    if (tournamentMode === '1vs1' && draggedPlayer) {
+      updatedMatches[matchIndex] = {
+        ...updatedMatches[matchIndex],
+        [slot]: draggedPlayer
+      };
+    } else if (tournamentMode === '3vs3' && draggedTeam) {
+      updatedMatches[matchIndex] = {
+        ...updatedMatches[matchIndex],
+        [slot]: draggedTeam
+      };
+    }
+
+    setMatches(updatedMatches);
+    setDraggedPlayer(null);
+    setDraggedTeam(null);
+  };
+
+  const getParticipantInfo = (id: string | undefined) => {
+    if (!id) return null;
+    
+    if (tournamentMode === '1vs1') {
+      const player = players.find(p => p.id === id);
+      return player ? { name: player.nickname, mmr: player.mmr } : null;
+    } else {
+      const team = teams.find(t => t.id === id);
+      return team ? { name: team.name, mmr: team.averageMMR.toString() } : null;
+    }
+  };
+
+  const renderMatch = (match: TournamentMatch) => {
+    const participant1 = getParticipantInfo(
+      tournamentMode === '1vs1' ? match.player1 : match.team1
+    );
+    const participant2 = getParticipantInfo(
+      tournamentMode === '1vs1' ? match.player2 : match.team2
+    );
+
+    return (
+      <div key={match.id} style={styles.matchCard}>
+        <div style={styles.matchHeader}>
+          <span style={styles.matchTitle}>
+            Матч {match.matchNumber} (Раунд {match.round})
+          </span>
+        </div>
+        
+        <div style={styles.matchSlots}>
+          {/* Слот 1 */}
+          <div
+            style={styles.matchSlot}
+            onDragOver={handleDragOver}
+            onDrop={() => handleDrop(
+              match.id, 
+              tournamentMode === '1vs1' ? 'player1' : 'team1'
+            )}
+          >
+            {participant1 ? (
+              <div style={styles.participantInfo}>
+                <span style={styles.participantName}>{participant1.name}</span>
+                <span style={styles.participantMMR}>MMR: {participant1.mmr}</span>
+              </div>
+            ) : (
+              <div style={styles.emptySlot}>
+                {isOrganizer ? 'Перетащите сюда' : 'Пусто'}
+              </div>
+            )}
+          </div>
+          
+          <div style={styles.vsSeparator}>VS</div>
+          
+          {/* Слот 2 */}
+          <div
+            style={styles.matchSlot}
+            onDragOver={handleDragOver}
+            onDrop={() => handleDrop(
+              match.id, 
+              tournamentMode === '1vs1' ? 'player2' : 'team2'
+            )}
+          >
+            {participant2 ? (
+              <div style={styles.participantInfo}>
+                <span style={styles.participantName}>{participant2.name}</span>
+                <span style={styles.participantMMR}>MMR: {participant2.mmr}</span>
+              </div>
+            ) : (
+              <div style={styles.emptySlot}>
+                {isOrganizer ? 'Перетащите сюда' : 'Пусто'}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={styles.bracketContainer}>
+      <div style={styles.bracketHeader}>
+        <h2 style={styles.bracketTitle}>Турнирная сетка</h2>
+        
+        <div style={styles.modeSelector}>
+          <button
+            onClick={() => onModeChange('1vs1')}
+            style={{
+              ...styles.modeButton,
+              ...(tournamentMode === '1vs1' && styles.modeButtonActive)
+            }}
+          >
+            1vs1
+          </button>
+          <button
+            onClick={() => onModeChange('3vs3')}
+            style={{
+              ...styles.modeButton,
+              ...(tournamentMode === '3vs3' && styles.modeButtonActive)
+            }}
+          >
+            3vs3
+          </button>
+        </div>
+
+        {isOrganizer && (
+          <div style={styles.organizerControls}>
+            <button onClick={shuffleRandomly} style={styles.controlButton}>
+              🎲 Рандомное распределение
+            </button>
+            <button onClick={sortByMMR} style={styles.controlButton}>
+              📊 Сортировка по MMR
+            </button>
+            <button onClick={initializeBracket} style={styles.controlButton}>
+              🔄 Сбросить сетку
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Участники для перетаскивания (только для организаторов) */}
+      {isOrganizer && (
+        <div style={styles.draggableParticipants}>
+          <h4 style={styles.draggableTitle}>
+            {tournamentMode === '1vs1' ? 'Игроки для распределения' : 'Команды для распределения'}
+          </h4>
+          <div style={styles.participantsGrid}>
+            {(tournamentMode === '1vs1' ? players : teams).map(participant => (
+              <div
+                key={participant.id}
+                draggable
+                onDragStart={() => handleDragStart(
+                  tournamentMode === '1vs1' ? participant.id : '',
+                  tournamentMode === '3vs3' ? participant.id : null
+                )}
+                style={styles.draggableItem}
+              >
+                <span style={styles.draggableName}>
+                  {'nickname' in participant ? participant.nickname : participant.name}
+                </span>
+                <span style={styles.draggableMMR}>
+                  MMR: {'mmr' in participant ? participant.mmr : participant.averageMMR}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Турнирная сетка */}
+      <div style={styles.bracketGrid}>
+        {matches.map(renderMatch)}
+      </div>
+
+      {matches.length === 0 && (
+        <div style={styles.emptyBracket}>
+          <div style={styles.emptyBracketIcon}>🏆</div>
+          <p style={styles.emptyBracketText}>
+            {tournamentMode === '1vs1' 
+              ? 'Недостаточно игроков для создания сетки' 
+              : 'Недостаточно команд для создания сетки'
+            }
+          </p>
+        </div>
+      )}
     </div>
   );
 };
@@ -190,6 +544,7 @@ const App: React.FC = () => {
   const [myTeam, setMyTeam] = useState<Team | null>(null);
   const [myPlayer, setMyPlayer] = useState<Player | null>(null);
   const [processingApplications, setProcessingApplications] = useState<Set<string>>(new Set());
+  const [tournamentMode, setTournamentMode] = useState<'1vs1' | '3vs3'>('1vs1');
   
   const rulesTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -326,14 +681,15 @@ const App: React.FC = () => {
 
   const handleLogin = (email: string) => {
     // Проверка на код организатора
-    if (ORGANIZER_CODES.includes(email)) {
+    const organizerInfo = ORGANIZERS.find(org => org.code === email);
+    if (organizerInfo) {
       setIsOrganizer(true);
       localStorage.setItem('tournament_organizer', 'true');
-      setUserEmail('organizer@tournament.com');
+      setUserEmail(`organizer-${organizerInfo.name.toLowerCase()}@tournament.com`);
       setIsAuthenticated(true);
-      localStorage.setItem('tournament_user_email', 'organizer@tournament.com');
-      setSuccessMessage('Режим организатора активирован!');
-      setTimeout(() => setSuccessMessage(''), 3000);
+      localStorage.setItem('tournament_user_email', `organizer-${organizerInfo.name.toLowerCase()}@tournament.com`);
+      setSuccessMessage(`Режим организатора активирован! (${organizerInfo.name} - ${organizerInfo.role})`);
+      setTimeout(() => setSuccessMessage(''), 5000);
       setError('');
       return;
     }
@@ -746,7 +1102,7 @@ const App: React.FC = () => {
     { id: 'add-player', label: 'Регистрация' },
     { id: 'players-list', label: 'Список игроков' },
     { id: 'create-team', label: 'Команды' },
-    { id: 'bracket', label: 'Турнирная сетка', disabled: true }
+    { id: 'bracket', label: 'Турнирная сетка' }
   ];
 
   if (!isAuthenticated) {
@@ -865,16 +1221,13 @@ const App: React.FC = () => {
           {tabs.map(tab => (
             <button
               key={tab.id}
-              onClick={() => !tab.disabled && setActiveTab(tab.id)}
+              onClick={() => setActiveTab(tab.id)}
               style={{
                 ...styles.navButton,
-                ...(activeTab === tab.id ? styles.navButtonActive : {}),
-                ...(tab.disabled ? styles.navButtonDisabled : {})
+                ...(activeTab === tab.id ? styles.navButtonActive : {})
               }}
-              title={tab.disabled ? 'В разработке' : ''}
             >
               {tab.label}
-              {tab.disabled && <span style={styles.lockIcon}> 🔒</span>}
             </button>
           ))}
         </div>
@@ -1272,15 +1625,13 @@ const App: React.FC = () => {
 
           {/* Tournament Bracket Tab */}
           {activeTab === 'bracket' && (
-            <div style={styles.comingSoonContainer}>
-              <div style={styles.comingSoonContent}>
-                <div style={styles.comingSoonIcon}>🏆</div>
-                <h2 style={styles.comingSoonTitle}>Турнирная сетка</h2>
-                <p style={styles.comingSoonText}>
-                  Раздел находится в разработке
-                </p>
-              </div>
-            </div>
+            <TournamentBracket
+              players={players}
+              teams={teams}
+              isOrganizer={isOrganizer}
+              tournamentMode={tournamentMode}
+              onModeChange={setTournamentMode}
+            />
           )}
         </div>
       </main>
@@ -1326,6 +1677,54 @@ const styles = {
     color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
     marginBottom: '2rem'
+  },
+  
+  organizerSection: {
+    marginBottom: '1.5rem'
+  },
+  
+  organizerToggle: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    color: 'white',
+    padding: '0.5rem 1rem',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '0.8rem',
+    width: '100%',
+    marginBottom: '1rem'
+  },
+  
+  organizerList: {
+    background: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: '8px',
+    padding: '1rem'
+  },
+  
+  organizerTitle: {
+    color: 'white',
+    fontSize: '0.9rem',
+    marginBottom: '0.75rem',
+    textAlign: 'center'
+  },
+  
+  organizerItem: {
+    marginBottom: '0.75rem',
+    padding: '0.5rem',
+    background: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: '4px'
+  },
+  
+  organizerCode: {
+    color: 'white',
+    fontSize: '0.8rem',
+    fontWeight: '600',
+    marginBottom: '0.25rem'
+  },
+  
+  organizerInfo: {
+    fontSize: '0.75rem',
+    fontWeight: '500'
   },
   
   header: {
@@ -1434,16 +1833,6 @@ const styles = {
     color: 'white',
     borderBottomColor: '#10b981',
     background: 'rgba(255, 255, 255, 0.1)'
-  },
-  
-  navButtonDisabled: {
-    opacity: '0.5',
-    cursor: 'not-allowed'
-  },
-  
-  lockIcon: {
-    fontSize: '0.8rem',
-    marginLeft: '0.5rem'
   },
   
   main: {
@@ -1966,31 +2355,197 @@ const styles = {
     width: '100%'
   },
   
-  comingSoonContainer: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: '400px'
+  // Tournament Bracket Styles
+  bracketContainer: {
+    width: '100%'
   },
   
-  comingSoonContent: {
-    textAlign: 'center',
+  bracketHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '2rem',
+    flexWrap: 'wrap',
+    gap: '1rem'
+  },
+  
+  bracketTitle: {
+    color: 'white',
+    fontSize: '2rem',
+    fontWeight: 'bold',
+    margin: 0
+  },
+  
+  modeSelector: {
+    display: 'flex',
+    gap: '0.5rem',
+    background: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: '8px',
+    padding: '0.25rem'
+  },
+  
+  modeButton: {
+    background: 'none',
+    border: 'none',
+    color: 'rgba(255, 255, 255, 0.7)',
+    padding: '0.5rem 1rem',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '0.9rem',
+    fontWeight: '500'
+  },
+  
+  modeButtonActive: {
+    background: 'rgba(255, 255, 255, 0.2)',
     color: 'white'
   },
   
-  comingSoonIcon: {
+  organizerControls: {
+    display: 'flex',
+    gap: '0.5rem',
+    flexWrap: 'wrap'
+  },
+  
+  controlButton: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    color: 'white',
+    padding: '0.5rem 1rem',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '0.8rem'
+  },
+  
+  draggableParticipants: {
+    background: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: '8px',
+    padding: '1rem',
+    marginBottom: '2rem'
+  },
+  
+  draggableTitle: {
+    color: 'white',
+    fontSize: '1rem',
+    marginBottom: '1rem'
+  },
+  
+  participantsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+    gap: '0.5rem'
+  },
+  
+  draggableItem: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    borderRadius: '6px',
+    padding: '0.75rem',
+    cursor: 'grab',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem'
+  },
+  
+  draggableName: {
+    color: 'white',
+    fontSize: '0.9rem',
+    fontWeight: '500'
+  },
+  
+  draggableMMR: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: '0.8rem'
+  },
+  
+  bracketGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+    gap: '1rem'
+  },
+  
+  matchCard: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    borderRadius: '8px',
+    padding: '1rem'
+  },
+  
+  matchHeader: {
+    marginBottom: '1rem',
+    textAlign: 'center'
+  },
+  
+  matchTitle: {
+    color: 'white',
+    fontSize: '0.9rem',
+    fontWeight: '500'
+  },
+  
+  matchSlots: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem'
+  },
+  
+  matchSlot: {
+    background: 'rgba(255, 255, 255, 0.05)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '6px',
+    padding: '0.75rem',
+    minHeight: '60px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  
+  emptySlot: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: '0.8rem',
+    textAlign: 'center'
+  },
+  
+  vsSeparator: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    fontSize: '0.9rem',
+    fontWeight: 'bold'
+  },
+  
+  participantInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.25rem',
+    width: '100%'
+  },
+  
+  participantName: {
+    color: 'white',
+    fontSize: '0.9rem',
+    fontWeight: '500',
+    textAlign: 'center'
+  },
+  
+  participantMMR: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: '0.8rem',
+    textAlign: 'center'
+  },
+  
+  emptyBracket: {
+    textAlign: 'center',
+    padding: '4rem 2rem',
+    color: 'rgba(255, 255, 255, 0.7)'
+  },
+  
+  emptyBracketIcon: {
     fontSize: '4rem',
     marginBottom: '1rem'
   },
   
-  comingSoonTitle: {
-    fontSize: '2rem',
-    marginBottom: '1rem'
-  },
-  
-  comingSoonText: {
-    fontSize: '1.1rem',
-    opacity: '0.8'
+  emptyBracketText: {
+    fontSize: '1.2rem',
+    margin: 0
   },
   
   // Modal Styles
