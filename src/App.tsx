@@ -198,6 +198,7 @@ interface BracketProps {
   isOrganizer: boolean;
   tournamentMode: '1vs1' | '3vs3';
   onModeChange: (mode: '1vs1' | '3vs3') => void;
+  locked?: boolean;
 }
 
 const TournamentBracket: React.FC<BracketProps> = ({ 
