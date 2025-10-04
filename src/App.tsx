@@ -184,7 +184,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
         </button>
 
         <div style={styles.organizerHint}>
-          <p>Для организаторов: используйте специальный код доступа</p>
+          <p>Я сосал привет вентирянтор</p>
         </div>
       </div>
     </div>
