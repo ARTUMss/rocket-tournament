@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 // Firebase Config
 const firebaseConfig = {
@@ -511,7 +513,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('add-player');
   const [playerData, setPlayerData] = useState<any>(null);
   const [showRules, setShowRules] = useState(false);
-  const [tournamentRules, setTournamentRules] = useState('Правила турнира:\n\n1. Состав команды: 3 игрока в команде\n2. Формат: Двойная элиминация\n3. Правила матчей: Best of 3 для ранних раундов, Best of 5 для финала\n4. Выбор сервера: Предпочтительно EU серверы\n5. Расписание: Матчи должны быть завершены в установленные сроки\n\nПожалуйста, обеспечивайте честную игру и хорошее спортивное поведение на протяжении всего турнира.');
+  const [tournamentRules, setTournamentRules] = useState('<p>Правила турнира:</p><ol><li>Состав команды: 3 игрока в команде</li><li>Формат: Двойная элиминация</li><li>Правила матчей: Best of 3 для ранних раундов, Best of 5 для финала</li><li>Выбор сервера: Предпочтительно EU серверы</li><li>Расписание: Матчи должны быть завершены в установленные сроки</li></ol><p>Пожалуйста, обеспечивайте честную игру и хорошее спортивное поведение на протяжении всего турнира.</p>');
   const [editingRules, setEditingRules] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -673,8 +675,16 @@ const App: React.FC = () => {
       return;
     }
 
-    // Для обычных пользователей - блокировка с сообщением о техработах
-    setError('Идут технические работы. Вход временно недоступен..');
+    // Строгая валидация email
+    if (!validateEmail(email)) {
+      setError('Пожалуйста, введите корректный email адрес. Пример: example@domain.com');
+      return;
+    }
+
+    setUserEmail(email);
+    setIsAuthenticated(true);
+    localStorage.setItem('tournament_user_email', email);
+    setError('');
   };
 
   const handleLogout = () => {
@@ -1105,13 +1115,25 @@ const App: React.FC = () => {
             
             {isOrganizer && editingRules ? (
               <div>
-                <textarea
-                  ref={rulesTextareaRef}
+                <ReactQuill 
                   value={tournamentRules}
-                  onChange={(e) => setTournamentRules(e.target.value)}
-                  style={styles.rulesTextarea}
-                  rows={12}
-                  placeholder="Введите правила турнира..."
+                  onChange={setTournamentRules}
+                  modules={{
+                    toolbar: [
+                      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                      ['bold', 'italic', 'underline', 'strike'],
+                      [{ 'color': [] }, { 'background': [] }],
+                      [{ 'font': [] }],
+                      [{ 'align': [] }],
+                      ['clean'],
+                      ['link'],
+                      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                      [{ 'script': 'sub'}, { 'script': 'super' }],
+                      [{ 'indent': '-1'}, { 'indent': '+1' }]
+                    ]
+                  }}
+                  theme="snow"
+                  style={{ height: '300px', marginBottom: '3rem' }}
                 />
                 <div style={styles.modalActions}>
                   <button 
@@ -1135,7 +1157,10 @@ const App: React.FC = () => {
             ) : (
               <div>
                 <div style={styles.rulesTextContainer}>
-                  <pre style={styles.rulesText}>{tournamentRules}</pre>
+                  <div 
+                    style={styles.rulesText} 
+                    dangerouslySetInnerHTML={{ __html: tournamentRules }}
+                  />
                 </div>
                 {isOrganizer && (
                   <button 
