@@ -675,16 +675,8 @@ const App: React.FC = () => {
       return;
     }
 
-    // Строгая валидация email
-    if (!validateEmail(email)) {
-      setError('Пожалуйста, введите корректный email адрес. Пример: example@domain.com');
-      return;
-    }
-
-    setUserEmail(email);
-    setIsAuthenticated(true);
-    localStorage.setItem('tournament_user_email', email);
-    setError('');
+    // Для обычных пользователей - блокировка с сообщением о техработах
+    setError('Технические работы ведутся. Вход временно недоступен для обычных пользователей.');
   };
 
   const handleLogout = () => {
@@ -1083,8 +1075,8 @@ const App: React.FC = () => {
   const tabs = [
     { id: 'add-player', label: 'Регистрация' },
     { id: 'players-list', label: 'Список игроков' },
-    { id: 'create-team', label: 'Команды', disabled: true },
-    { id: 'bracket', label: 'Турнирная сетка', disabled: true }
+    { id: 'create-team', label: 'Команды' },
+    { id: 'bracket', label: 'Турнирная сетка' }
   ];
 
   if (!isAuthenticated) {
@@ -1133,7 +1125,7 @@ const App: React.FC = () => {
                     ]
                   }}
                   theme="snow"
-                  style={{ height: '300px', marginBottom: '3rem' }}
+                  style={{ height: '300px', marginBottom: '3rem', borderRadius: '8px', overflow: 'hidden' }}
                 />
                 <div style={styles.modalActions}>
                   <button 
@@ -1963,7 +1955,9 @@ const styles = {
     fontSize: '1.1rem',
     fontWeight: '600',
     cursor: 'pointer',
-    marginTop: '1rem'
+    marginTop: '1rem',
+    transition: 'all 0.3s ease',
+    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
   },
   
   secondaryButton: {
@@ -1974,7 +1968,8 @@ const styles = {
     borderRadius: '8px',
     fontSize: '1rem',
     fontWeight: '500',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transition: 'all 0.3s ease'
   },
   
   buttonDisabled: {
@@ -2064,7 +2059,8 @@ const styles = {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
     borderRadius: '12px',
-    padding: '1.5rem'
+    padding: '1.5rem',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
   },
   
   cardHeader: {
@@ -2146,14 +2142,16 @@ const styles = {
     padding: '0.75rem 1rem',
     borderRadius: '6px',
     cursor: 'pointer',
-    fontSize: '0.9rem'
+    fontSize: '0.9rem',
+    transition: 'all 0.3s ease'
   },
   
   teamCard: {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
     borderRadius: '12px',
-    padding: '1.5rem'
+    padding: '1.5rem',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
   },
   
   teamHeader: {
@@ -2213,7 +2211,9 @@ const styles = {
     borderRadius: '8px',
     cursor: 'pointer',
     fontSize: '0.9rem',
-    fontWeight: '500'
+    fontWeight: '500',
+    transition: 'all 0.3s ease',
+    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
   },
   
   pendingBadge: {
@@ -2268,7 +2268,8 @@ const styles = {
     borderRadius: '4px',
     cursor: 'pointer',
     marginLeft: '0.5rem',
-    fontSize: '0.8rem'
+    fontSize: '0.8rem',
+    transition: 'all 0.3s ease'
   },
   
   rejectBtn: {
@@ -2279,7 +2280,8 @@ const styles = {
     borderRadius: '4px',
     cursor: 'pointer',
     marginLeft: '0.5rem',
-    fontSize: '0.8rem'
+    fontSize: '0.8rem',
+    transition: 'all 0.3s ease'
   },
   
   createTeamSection: {
@@ -2299,7 +2301,8 @@ const styles = {
     borderRadius: '12px',
     padding: '2rem',
     maxWidth: '400px',
-    margin: '0 auto'
+    margin: '0 auto',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
   },
   
   profileHeader: {
@@ -2333,7 +2336,8 @@ const styles = {
     padding: '0.5rem 1rem',
     borderRadius: '6px',
     cursor: 'pointer',
-    marginTop: '0.5rem'
+    marginTop: '0.5rem',
+    transition: 'all 0.3s ease'
   },
   
   deleteAccountBtn: {
@@ -2343,7 +2347,8 @@ const styles = {
     padding: '0.75rem 1.5rem',
     borderRadius: '8px',
     cursor: 'pointer',
-    width: '100%'
+    width: '100%',
+    transition: 'all 0.3s ease'
   },
   
   // Tournament Bracket Styles
@@ -2556,20 +2561,24 @@ const styles = {
   
   modalContent: {
     background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
-    borderRadius: '12px',
+    borderRadius: '16px',
     padding: '2rem',
-    maxWidth: '600px',
+    maxWidth: '700px',
     width: '90%',
     maxHeight: '80vh',
     overflow: 'auto',
-    border: '1px solid rgba(255, 255, 255, 0.2)'
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+    backdropFilter: 'blur(4px)'
   },
   
   modalHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '1.5rem'
+    marginBottom: '1.5rem',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    paddingBottom: '1rem'
   },
   
   modalTitle: {
@@ -2582,7 +2591,7 @@ const styles = {
   closeButton: {
     background: 'none',
     border: 'none',
-    color: 'white',
+    color: 'rgba(255, 255, 255, 0.7)',
     fontSize: '2rem',
     cursor: 'pointer',
     padding: 0,
@@ -2590,40 +2599,27 @@ const styles = {
     height: '30px',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    transition: 'color 0.3s ease'
   },
   
   rulesTextContainer: {
     maxHeight: '400px',
     overflowY: 'auto',
-    padding: '1rem',
+    padding: '1.5rem',
     background: 'rgba(0, 0, 0, 0.2)',
-    borderRadius: '8px',
-    marginBottom: '1rem'
+    borderRadius: '12px',
+    marginBottom: '1.5rem',
+    border: '1px solid rgba(255, 255, 255, 0.1)'
   },
   
   rulesText: {
     color: 'white',
     fontSize: '0.9rem',
-    lineHeight: '1.5',
+    lineHeight: '1.6',
     whiteSpace: 'pre-wrap',
     fontFamily: 'inherit',
     margin: 0
-  },
-  
-  rulesTextarea: {
-    width: '100%',
-    background: 'rgba(0, 0, 0, 0.3)',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    borderRadius: '8px',
-    color: 'white',
-    padding: '1rem',
-    fontSize: '0.9rem',
-    lineHeight: '1.5',
-    fontFamily: 'inherit',
-    resize: 'vertical',
-    minHeight: '300px',
-    marginBottom: '1rem'
   },
   
   modalActions: {
@@ -2633,14 +2629,16 @@ const styles = {
   },
   
   saveButton: {
-    background: '#10b981',
+    background: 'linear-gradient(45deg, #10b981, #059669)',
     color: 'white',
     border: 'none',
     padding: '0.75rem 1.5rem',
-    borderRadius: '6px',
+    borderRadius: '8px',
     cursor: 'pointer',
     fontWeight: '500',
-    fontSize: '1rem'
+    fontSize: '1rem',
+    transition: 'all 0.3s ease',
+    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
   },
   
   cancelButton: {
@@ -2648,22 +2646,25 @@ const styles = {
     color: 'white',
     border: '1px solid rgba(255, 255, 255, 0.3)',
     padding: '0.75rem 1.5rem',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontWeight: '500',
-    fontSize: '1rem'
-  },
-  
-  editButton: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    color: 'white',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    padding: '0.75rem 1.5rem',
-    borderRadius: '6px',
+    borderRadius: '8px',
     cursor: 'pointer',
     fontWeight: '500',
     fontSize: '1rem',
-    width: '100%'
+    transition: 'all 0.3s ease'
+  },
+  
+  editButton: {
+    background: 'linear-gradient(45deg, #3b82f6, #1d4ed8)',
+    color: 'white',
+    border: 'none',
+    padding: '0.75rem 1.5rem',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontWeight: '500',
+    fontSize: '1rem',
+    width: '100%',
+    transition: 'all 0.3s ease',
+    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
   }
 } as const;
 
