@@ -184,7 +184,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
         </button>
 
         <div style={styles.organizerHint}>
-          <p>Я сосал привет вентирянтор</p>
+          <p>Test</p>
         </div>
       </div>
     </div>
@@ -486,8 +486,7 @@ const TournamentBracket: React.FC<BracketProps> = ({
           <p style={styles.emptyBracketText}>
             {tournamentMode === '1vs1' 
               ? 'Недостаточно игроков для создания сетки' 
-              : 'Недостаточно команд для создания сетки'
-            }
+              : 'Недостаточно команд для создания сетки'}
           </p>
         </div>
       )}
@@ -674,16 +673,8 @@ const App: React.FC = () => {
       return;
     }
 
-    // Строгая валидация email
-    if (!validateEmail(email)) {
-      setError('Пожалуйста, введите корректный email адрес. Пример: example@domain.com');
-      return;
-    }
-
-    setUserEmail(email);
-    setIsAuthenticated(true);
-    localStorage.setItem('tournament_user_email', email);
-    setError('');
+    // Для обычных пользователей - блокировка с сообщением о техработах
+    setError('Идут технические работы. Вход временно недоступен..');
   };
 
   const handleLogout = () => {
