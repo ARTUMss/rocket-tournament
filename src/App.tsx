@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import { Editor } from '@tinymce/tinymce-react';
 
 // Firebase Config
 const firebaseConfig = {
@@ -1107,25 +1106,45 @@ const App: React.FC = () => {
             
             {isOrganizer && editingRules ? (
               <div>
-                <ReactQuill 
+                <Editor
+                  apiKey="your-tinymce-api-key" // Замените на ваш ключ с tiny.cloud
                   value={tournamentRules}
-                  onChange={setTournamentRules}
-                  modules={{
-                    toolbar: [
-                      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-                      ['bold', 'italic', 'underline', 'strike'],
-                      [{ 'color': [] }, { 'background': [] }],
-                      [{ 'font': [] }],
-                      [{ 'align': [] }],
-                      ['clean'],
-                      ['link'],
-                      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                      [{ 'script': 'sub'}, { 'script': 'super' }],
-                      [{ 'indent': '-1'}, { 'indent': '+1' }]
-                    ]
+                  onEditorChange={(newValue, editor) => setTournamentRules(newValue)}
+                  init={{
+                    height: 400,
+                    menubar: 'file edit insert view format table tools',
+                    plugins: [
+                      'advlist autolink lists link image charmap print preview anchor',
+                      'searchreplace visualblocks code fullscreen',
+                      'insertdatetime media table paste code help wordcount',
+                      'textcolor colorpicker textpattern'
+                    ],
+                    toolbar: 'undo redo | formatselect | ' +
+                      'bold italic underline strikethrough | forecolor backcolor | ' +
+                      'alignleft aligncenter alignright alignjustify | ' +
+                      'bullist numlist outdent indent | ' +
+                      'removeformat | neon | help',
+                    content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px } ' +
+                      '.neon { ' +
+                      'text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 15px #00ff00, 0 0 20px #00ff00, 0 0 30px #00ff00, 0 0 40px #00ff00, 0 0 50px #00ff00, 0 0 75px #00ff00; ' +
+                      'color: #fff; ' +
+                      '}',
+                    formats: {
+                      neon: { inline: 'span', styles: { 
+                        textShadow: '0 0 5px #fff, 0 0 10px #fff, 0 0 15px #00ff00, 0 0 20px #00ff00, 0 0 30px #00ff00, 0 0 40px #00ff00, 0 0 50px #00ff00, 0 0 75px #00ff00', 
+                        color: '#fff' 
+                      } }
+                    },
+                    setup: (editor) => {
+                      editor.ui.registry.addButton('neon', {
+                        text: 'Неон',
+                        onAction: () => {
+                          editor.execCommand('mceToggleFormat', false, 'neon');
+                        },
+                        icon: 'lightbulb' // Использует встроенную иконку (или можно добавить кастомную)
+                      });
+                    }
                   }}
-                  theme="snow"
-                  style={{ height: '300px', marginBottom: '3rem', borderRadius: '8px', overflow: 'hidden' }}
                 />
                 <div style={styles.modalActions}>
                   <button 
@@ -1139,7 +1158,7 @@ const App: React.FC = () => {
                     style={styles.cancelButton}
                     onClick={() => {
                       setEditingRules(false);
-                      loadTournamentRules(); // Восстанавливаем оригинальные правила
+                      loadTournamentRules();
                     }}
                   >
                     Отмена
@@ -1955,9 +1974,7 @@ const styles = {
     fontSize: '1.1rem',
     fontWeight: '600',
     cursor: 'pointer',
-    marginTop: '1rem',
-    transition: 'all 0.3s ease',
-    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+    marginTop: '1rem'
   },
   
   secondaryButton: {
@@ -1968,8 +1985,7 @@ const styles = {
     borderRadius: '8px',
     fontSize: '1rem',
     fontWeight: '500',
-    cursor: 'pointer',
-    transition: 'all 0.3s ease'
+    cursor: 'pointer'
   },
   
   buttonDisabled: {
@@ -2059,8 +2075,7 @@ const styles = {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
     borderRadius: '12px',
-    padding: '1.5rem',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+    padding: '1.5rem'
   },
   
   cardHeader: {
@@ -2142,16 +2157,14 @@ const styles = {
     padding: '0.75rem 1rem',
     borderRadius: '6px',
     cursor: 'pointer',
-    fontSize: '0.9rem',
-    transition: 'all 0.3s ease'
+    fontSize: '0.9rem'
   },
   
   teamCard: {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
     borderRadius: '12px',
-    padding: '1.5rem',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+    padding: '1.5rem'
   },
   
   teamHeader: {
@@ -2211,9 +2224,7 @@ const styles = {
     borderRadius: '8px',
     cursor: 'pointer',
     fontSize: '0.9rem',
-    fontWeight: '500',
-    transition: 'all 0.3s ease',
-    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+    fontWeight: '500'
   },
   
   pendingBadge: {
@@ -2268,8 +2279,7 @@ const styles = {
     borderRadius: '4px',
     cursor: 'pointer',
     marginLeft: '0.5rem',
-    fontSize: '0.8rem',
-    transition: 'all 0.3s ease'
+    fontSize: '0.8rem'
   },
   
   rejectBtn: {
@@ -2280,8 +2290,7 @@ const styles = {
     borderRadius: '4px',
     cursor: 'pointer',
     marginLeft: '0.5rem',
-    fontSize: '0.8rem',
-    transition: 'all 0.3s ease'
+    fontSize: '0.8rem'
   },
   
   createTeamSection: {
@@ -2301,8 +2310,7 @@ const styles = {
     borderRadius: '12px',
     padding: '2rem',
     maxWidth: '400px',
-    margin: '0 auto',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+    margin: '0 auto'
   },
   
   profileHeader: {
@@ -2336,8 +2344,7 @@ const styles = {
     padding: '0.5rem 1rem',
     borderRadius: '6px',
     cursor: 'pointer',
-    marginTop: '0.5rem',
-    transition: 'all 0.3s ease'
+    marginTop: '0.5rem'
   },
   
   deleteAccountBtn: {
@@ -2347,8 +2354,7 @@ const styles = {
     padding: '0.75rem 1.5rem',
     borderRadius: '8px',
     cursor: 'pointer',
-    width: '100%',
-    transition: 'all 0.3s ease'
+    width: '100%'
   },
   
   // Tournament Bracket Styles
@@ -2561,24 +2567,20 @@ const styles = {
   
   modalContent: {
     background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
-    borderRadius: '16px',
+    borderRadius: '12px',
     padding: '2rem',
-    maxWidth: '700px',
+    maxWidth: '600px',
     width: '90%',
     maxHeight: '80vh',
     overflow: 'auto',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-    backdropFilter: 'blur(4px)'
+    border: '1px solid rgba(255, 255, 255, 0.2)'
   },
   
   modalHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '1.5rem',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-    paddingBottom: '1rem'
+    marginBottom: '1.5rem'
   },
   
   modalTitle: {
@@ -2591,7 +2593,7 @@ const styles = {
   closeButton: {
     background: 'none',
     border: 'none',
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'white',
     fontSize: '2rem',
     cursor: 'pointer',
     padding: 0,
@@ -2599,27 +2601,40 @@ const styles = {
     height: '30px',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'color 0.3s ease'
+    justifyContent: 'center'
   },
   
   rulesTextContainer: {
     maxHeight: '400px',
     overflowY: 'auto',
-    padding: '1.5rem',
+    padding: '1rem',
     background: 'rgba(0, 0, 0, 0.2)',
-    borderRadius: '12px',
-    marginBottom: '1.5rem',
-    border: '1px solid rgba(255, 255, 255, 0.1)'
+    borderRadius: '8px',
+    marginBottom: '1rem'
   },
   
   rulesText: {
     color: 'white',
     fontSize: '0.9rem',
-    lineHeight: '1.6',
+    lineHeight: '1.5',
     whiteSpace: 'pre-wrap',
     fontFamily: 'inherit',
     margin: 0
+  },
+  
+  rulesTextarea: {
+    width: '100%',
+    background: 'rgba(0, 0, 0, 0.3)',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    borderRadius: '8px',
+    color: 'white',
+    padding: '1rem',
+    fontSize: '0.9rem',
+    lineHeight: '1.5',
+    fontFamily: 'inherit',
+    resize: 'vertical',
+    minHeight: '300px',
+    marginBottom: '1rem'
   },
   
   modalActions: {
@@ -2629,16 +2644,14 @@ const styles = {
   },
   
   saveButton: {
-    background: 'linear-gradient(45deg, #10b981, #059669)',
+    background: '#10b981',
     color: 'white',
     border: 'none',
     padding: '0.75rem 1.5rem',
-    borderRadius: '8px',
+    borderRadius: '6px',
     cursor: 'pointer',
     fontWeight: '500',
-    fontSize: '1rem',
-    transition: 'all 0.3s ease',
-    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+    fontSize: '1rem'
   },
   
   cancelButton: {
@@ -2646,25 +2659,22 @@ const styles = {
     color: 'white',
     border: '1px solid rgba(255, 255, 255, 0.3)',
     padding: '0.75rem 1.5rem',
-    borderRadius: '8px',
+    borderRadius: '6px',
     cursor: 'pointer',
     fontWeight: '500',
-    fontSize: '1rem',
-    transition: 'all 0.3s ease'
+    fontSize: '1rem'
   },
   
   editButton: {
-    background: 'linear-gradient(45deg, #3b82f6, #1d4ed8)',
+    background: 'rgba(255, 255, 255, 0.1)',
     color: 'white',
-    border: 'none',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
     padding: '0.75rem 1.5rem',
-    borderRadius: '8px',
+    borderRadius: '6px',
     cursor: 'pointer',
     fontWeight: '500',
     fontSize: '1rem',
-    width: '100%',
-    transition: 'all 0.3s ease',
-    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+    width: '100%'
   }
 } as const;
 
