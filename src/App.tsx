@@ -1107,7 +1107,7 @@ const App: React.FC = () => {
             {isOrganizer && editingRules ? (
               <div>
                 <Editor
-                  apiKey="your-tinymce-api-key" // Замените на ваш ключ с tiny.cloud
+                  apiKey="oloehvuqanz1w730d8n49ffecahkqxiz5w3g9tpo2l43qynn" 
                   value={tournamentRules}
                   onEditorChange={(newValue, editor) => setTournamentRules(newValue)}
                   init={{
