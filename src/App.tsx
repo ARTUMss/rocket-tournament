@@ -74,7 +74,7 @@ interface OrganizerInfo {
   color: string;
 }
 
-// Rank images mapping - исправленные ссылки
+// Rank images mapping
 interface RankImages {
   [key: string]: string;
 }
@@ -171,19 +171,17 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
           )}
         </div>
         
-        <button
-          onClick={() => handleLogin(userEmail)}
-          disabled={!userEmail}
-          style={{
-            ...styles.submitButton,
-            ...(!userEmail && styles.buttonDisabled)
-          }}
-        >
-          Войти в турнир
-        </button>
-
-        <div style={styles.organizerHint}>
-          <p>Test</p>
+        <div style={styles.buttonContainer}>
+          <button
+            onClick={() => handleLogin(userEmail)}
+            disabled={!userEmail}
+            style={{
+              ...styles.submitButton,
+              ...(!userEmail && styles.buttonDisabled)
+            }}
+          >
+            Войти в турнир
+          </button>
         </div>
       </div>
     </div>
@@ -504,7 +502,7 @@ const App: React.FC = () => {
   const [isOrganizer, setIsOrganizer] = useState(false);
   const [currentOrganizer, setCurrentOrganizer] = useState<OrganizerInfo | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isDataLoading, setIsDataLoading] = useState(true); // New: for data loading
+  const [isDataLoading, setIsDataLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [activeTab, setActiveTab] = useState('add-player');
@@ -1687,12 +1685,10 @@ const styles = {
     marginBottom: '2rem'
   },
   
-  organizerHint: {
-    marginTop: '1.5rem',
-    padding: '1rem',
-    background: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: '6px',
-    textAlign: 'center'
+  buttonContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    marginTop: '1.5rem'
   },
   
   header: {
