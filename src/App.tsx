@@ -123,6 +123,30 @@ interface LoginFormProps {
   error: string;
 }
 
+const Particles: React.FC = () => {
+  const particles = Array.from({ length: 8 }); // Не много, чтобы не засорять (8 частиц)
+
+  return (
+    <div style={styles.particlesContainer}>
+      {particles.map((_, index) => (
+        <div
+          key={index}
+          style={{
+            ...styles.particle,
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            animationDelay: `${Math.random() * 5}s`, // Random delay для асинхронности
+            animationDuration: `${8 + Math.random() * 4}s`, // Разная скорость (8-12s)
+            width: `${4 + Math.random() * 6}px`, // Размер 4-10px
+            height: `${4 + Math.random() * 6}px`,
+            opacity: 0.3 + Math.random() * 0.5, // Полупрозрачные
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
 const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLogin, error }) => {
   const emailInputRef = useRef<HTMLInputElement>(null);
 
@@ -134,6 +158,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
 
   return (
     <div style={styles.loginContainer}>
+      <Particles /> {/* Добавляем анимацию частиц только здесь */}
       <div style={styles.loginForm}>
         <h2 style={styles.loginTitle}>Вход в турнир</h2>
         <p style={styles.loginSubtitle}>
@@ -1661,7 +1686,9 @@ const styles = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)'
+    background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+    position: 'relative', // Для позиционирования частиц
+    overflow: 'hidden'
   },
   
   loginForm: {
@@ -1671,7 +1698,8 @@ const styles = {
     borderRadius: '12px',
     border: '1px solid rgba(255, 255, 255, 0.2)',
     width: '100%',
-    maxWidth: '400px'
+    maxWidth: '400px',
+    zIndex: 2 // Над частицами
   },
   
   loginTitle: {
@@ -2652,7 +2680,46 @@ const styles = {
   loadingSpinner: {
     color: 'white',
     fontSize: '1.5rem'
+  },
+
+  // Particles styles
+  particlesContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    zIndex: 1, // Под формой логина
+    pointerEvents: 'none', // Не мешает взаимодействию
+    overflow: 'hidden'
+  },
+  particle: {
+    position: 'absolute',
+    background: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: '50%',
+    animation: 'float 10s infinite ease-in-out',
+    boxShadow: '0 0 8px 2px rgba(255, 255, 255, 0.4)', // Лёгкое свечение для "glowing" эффекта
   }
 } as const;
+
+// Keyframes для анимации (добавляем глобально, но в React это можно вставить в <style> или использовать styled-components, здесь - в объекте стилей)
+const globalStyles = document.createElement('style');
+globalStyles.innerHTML = `
+  @keyframes float {
+    0% {
+      transform: translate(0, 0) scale(1);
+      opacity: 0.8;
+    }
+    50% {
+      transform: translate(${Math.random() * 20 - 10}px, -30px) scale(1.2); // Лёгкое плавание вверх-вниз с горизонтальным сдвигом
+      opacity: 0.4;
+    }
+    100% {
+      transform: translate(0, 0) scale(1);
+      opacity: 0.8;
+    }
+  }
+`;
+document.head.appendChild(globalStyles);
 
 export default App;
