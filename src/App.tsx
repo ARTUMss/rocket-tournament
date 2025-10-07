@@ -123,9 +123,8 @@ interface LoginFormProps {
   error: string;
 }
 
-// Улучшенный компонент частиц с плавной анимацией
 const Particles: React.FC = () => {
-  const particles = Array.from({ length: 12 }); // Увеличил количество частиц для лучшего эффекта
+  const particles = Array.from({ length: 8 }); // Не много, чтобы не засорять (8 частиц)
 
   return (
     <div style={styles.particlesContainer}>
@@ -136,62 +135,15 @@ const Particles: React.FC = () => {
             ...styles.particle,
             left: `${Math.random() * 100}%`,
             top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 8}s`, // Увеличил задержку для более плавного появления
-            animationDuration: `${15 + Math.random() * 10}s`, // Увеличил длительность для более медленного движения
-            width: `${3 + Math.random() * 4}px`, // Уменьшил размер частиц
-            height: `${3 + Math.random() * 4}px`,
-            opacity: 0.2 + Math.random() * 0.4, // Сделал более прозрачными
-            background: `rgba(255, 255, 255, ${0.3 + Math.random() * 0.4})`, // Разная прозрачность
+            animationDelay: `${Math.random() * 10}s`, // Увеличенная задержка для асинхронности
+            animationDuration: `${25 + Math.random() * 15}s`, // Медленнее: 25-40 секунд для плавности
+            width: `${4 + Math.random() * 6}px`, // Размер 4-10px
+            height: `${4 + Math.random() * 6}px`,
+            opacity: 0.2 + Math.random() * 0.4, // Более прозрачные для мягкости
           }}
         />
       ))}
     </div>
-  );
-};
-
-// Компонент кнопки в стиле Supergrok с частицами
-const SupergrokButton: React.FC<{ onClick: () => void; disabled: boolean; children: React.ReactNode }> = ({ 
-  onClick, 
-  disabled, 
-  children 
-}) => {
-  const [isHovered, setIsHovered] = useState(false);
-  
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        ...styles.supergrokButton,
-        ...(disabled && styles.supergrokButtonDisabled),
-        ...(isHovered && !disabled && styles.supergrokButtonHover)
-      }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <span style={styles.buttonContent}>
-        {children}
-      </span>
-      
-      {/* Эффект частиц при наведении */}
-      {isHovered && !disabled && (
-        <div style={styles.buttonParticles}>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div
-              key={i}
-              style={{
-                ...styles.buttonParticle,
-                left: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 0.5}s`,
-              }}
-            />
-          ))}
-        </div>
-      )}
-      
-      {/* Свечение */}
-      <div style={styles.buttonGlow} />
-    </button>
   );
 };
 
@@ -245,12 +197,16 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
         </div>
         
         <div style={styles.buttonContainer}>
-          <SupergrokButton
+          <button
             onClick={() => handleLogin(userEmail)}
             disabled={!userEmail}
+            style={{
+              ...styles.submitButton,
+              ...(!userEmail && styles.buttonDisabled)
+            }}
           >
             Войти в турнир
-          </SupergrokButton>
+          </button>
         </div>
       </div>
     </div>
@@ -1730,7 +1686,7 @@ const styles = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+    background: '#000000', // Total black как в Grok
     position: 'relative',
     overflow: 'hidden'
   },
@@ -1765,93 +1721,6 @@ const styles = {
     marginTop: '1.5rem'
   },
   
-  // Supergrok Button Styles
-  supergrokButton: {
-    position: 'relative',
-    padding: '1rem 2rem',
-    background: 'linear-gradient(45deg, #10b981, #059669)',
-    color: 'white',
-    border: 'none',
-    borderRadius: '12px',
-    fontSize: '1.1rem',
-    fontWeight: '600',
-    cursor: 'pointer',
-    overflow: 'hidden',
-    transition: 'all 0.3s ease',
-    boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)',
-    minWidth: '200px'
-  },
-  
-  supergrokButtonHover: {
-    transform: 'translateY(-2px)',
-    boxShadow: '0 8px 25px rgba(16, 185, 129, 0.5)'
-  },
-  
-  supergrokButtonDisabled: {
-    opacity: '0.5',
-    cursor: 'not-allowed',
-    transform: 'none',
-    boxShadow: '0 4px 15px rgba(16, 185, 129, 0.2)'
-  },
-  
-  buttonContent: {
-    position: 'relative',
-    zIndex: 2
-  },
-  
-  buttonParticles: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    pointerEvents: 'none',
-    zIndex: 1
-  },
-  
-  buttonParticle: {
-    position: 'absolute',
-    width: '4px',
-    height: '4px',
-    background: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: '50%',
-    animation: 'buttonFloat 1s ease-out forwards',
-    boxShadow: '0 0 6px 2px rgba(255, 255, 255, 0.6)'
-  },
-  
-  buttonGlow: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    width: '0',
-    height: '0',
-    borderRadius: '50%',
-    background: 'rgba(255, 255, 255, 0.2)',
-    transform: 'translate(-50%, -50%)',
-    transition: 'all 0.3s ease',
-    zIndex: 1
-  },
-  
-  // Particles Styles
-  particlesContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    zIndex: 1,
-    pointerEvents: 'none',
-    overflow: 'hidden'
-  },
-  
-  particle: {
-    position: 'absolute',
-    borderRadius: '50%',
-    animation: 'particleFloat 15s infinite ease-in-out',
-    boxShadow: '0 0 8px 2px rgba(255, 255, 255, 0.4)',
-  },
-  
-  // Остальные стили остаются без изменений
   header: {
     background: 'rgba(255, 255, 255, 0.1)',
     backdropFilter: 'blur(10px)',
@@ -2114,15 +1983,16 @@ const styles = {
   
   submitButton: {
     padding: '1rem 2rem',
-    background: 'linear-gradient(45deg, #10b981, #059669)',
-    color: 'white',
+    background: '#ffffff', // Белый фон как в SuperGrok
+    color: '#000000', // Черный текст
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '20px', // Более скругленный как в SuperGrok
     fontSize: '1.1rem',
     fontWeight: '600',
     cursor: 'pointer',
     marginTop: '1rem',
-    transition: 'opacity 0.3s'
+    transition: 'opacity 0.3s',
+    boxShadow: '0 0 10px rgba(255, 255, 255, 0.5)' // Легкое свечение
   },
   
   secondaryButton: {
@@ -2811,43 +2681,43 @@ const styles = {
   loadingSpinner: {
     color: 'white',
     fontSize: '1.5rem'
+  },
+
+  // Particles styles
+  particlesContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    zIndex: 1, // Под формой логина
+    pointerEvents: 'none', // Не мешает взаимодействию
+    overflow: 'hidden'
+  },
+  particle: {
+    position: 'absolute',
+    background: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: '50%',
+    animation: 'float 10s infinite ease-in-out',
+    boxShadow: '0 0 8px 2px rgba(255, 255, 255, 0.4)', // Лёгкое свечение для "glowing" эффекта
   }
 } as const;
 
-// Добавляем глобальные стили для анимаций
+// Keyframes для анимации (добавляем глобально, но в React это можно вставить в <style> или использовать styled-components, здесь - в объекте стилей)
 const globalStyles = document.createElement('style');
 globalStyles.innerHTML = `
-  @keyframes particleFloat {
+  @keyframes float {
     0% {
-      transform: translate(0, 0) scale(1);
-      opacity: 0.3;
-    }
-    25% {
-      transform: translate(${Math.random() * 40 - 20}px, -40px) scale(1.1);
-      opacity: 0.6;
+      transform: translateY(0) scale(1);
+      opacity: 0.8;
     }
     50% {
-      transform: translate(${Math.random() * 60 - 30}px, -80px) scale(1.2);
+      transform: translateY(-50px) scale(1.1); // Более плавное движение, без случайного горизонтального сдвига для простоты и плавности
       opacity: 0.4;
     }
-    75% {
-      transform: translate(${Math.random() * 40 - 20}px, -40px) scale(1.1);
-      opacity: 0.6;
-    }
     100% {
-      transform: translate(0, 0) scale(1);
-      opacity: 0.3;
-    }
-  }
-  
-  @keyframes buttonFloat {
-    0% {
-      transform: translate(0, 0) scale(1);
-      opacity: 1;
-    }
-    100% {
-      transform: translate(${Math.random() * 100 - 50}px, ${Math.random() * 100 - 50}px) scale(0);
-      opacity: 0;
+      transform: translateY(0) scale(1);
+      opacity: 0.8;
     }
   }
 `;
