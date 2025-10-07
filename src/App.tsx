@@ -116,8 +116,6 @@ const ORGANIZERS: OrganizerInfo[] = [
   { code: 'CHAMP-ACCESS-3R6L9Z', name: 'twinkey', role: 'Организатор', color: '#10b981' }
 ];
 
-const ORGANIZER_CODES = ORGANIZERS.map(org => org.code);
-
 interface LoginFormProps {
   userEmail: string;
   setUserEmail: (value: string) => void;
@@ -483,12 +481,11 @@ const TournamentBracket: React.FC<BracketProps> = ({
 
       {matches.length === 0 && (
         <div style={styles.emptyBracket}>
-          <div style={styles.emptyBracketIcon}>Т</div>
-          <p style={styles.emptyBracketText}>
+          <div style={styles.emptyBracketText}>
             {tournamentMode === '1vs1' 
               ? 'Недостаточно игроков для создания сетки' 
               : 'Недостаточно команд для создания сетки'}
-          </p>
+          </div>
         </div>
       )}
     </div>
@@ -507,6 +504,7 @@ const App: React.FC = () => {
   const [isOrganizer, setIsOrganizer] = useState(false);
   const [currentOrganizer, setCurrentOrganizer] = useState<OrganizerInfo | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isDataLoading, setIsDataLoading] = useState(true); // New: for data loading
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [activeTab, setActiveTab] = useState('add-player');
@@ -523,6 +521,21 @@ const App: React.FC = () => {
   const [tournamentMode, setTournamentMode] = useState<'1vs1' | '3vs3'>('1vs1');
   
   const rulesTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-dismiss messages
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(''), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(''), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
 
   // Восстановление состояния аутентификации при загрузке
   useEffect(() => {
@@ -541,10 +554,11 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Оптимизированные подписки на данные с дебаунсингом
+  // Оптимизированные подписки на данные с дебаунсингом и loading
   useEffect(() => {
     if (!isAuthenticated) return;
 
+    setIsDataLoading(true);
     let playersUnsubscribe: () => void;
     let teamsUnsubscribe: () => void;
     let applicationsUnsubscribe: () => void;
@@ -581,16 +595,19 @@ const App: React.FC = () => {
         } as Application));
         setTeamApplications(applicationsData);
       });
+
+      setIsDataLoading(false);
     };
 
-    // Задержка для уменьшения нагрузки
-    const timeoutId = setTimeout(initSubscriptions, 100);
+    // Debounce init
+    const timeoutId = setTimeout(initSubscriptions, 300);
 
     return () => {
       clearTimeout(timeoutId);
       if (playersUnsubscribe) playersUnsubscribe();
       if (teamsUnsubscribe) teamsUnsubscribe();
       if (applicationsUnsubscribe) applicationsUnsubscribe();
+      setIsDataLoading(false);
     };
   }, [isAuthenticated]);
 
@@ -669,13 +686,21 @@ const App: React.FC = () => {
       setIsAuthenticated(true);
       localStorage.setItem('tournament_user_email', `${organizerInfo.name}@tournament.com`);
       setSuccessMessage(`Режим организатора активирован! (${organizerInfo.name} - ${organizerInfo.role})`);
-      setTimeout(() => setSuccessMessage(''), 5000);
       setError('');
       return;
     }
 
-    // Для обычных пользователей - блокировка с сообщением о техработах
-    setError('Технические работы ведутся. Вход временно недоступен для обычных пользователей.');
+    // Для обычных пользователей - валидация и вход
+    if (!validateEmail(email)) {
+      setError('Некорректный email. Пример: example@domain.com');
+      return;
+    }
+
+    setIsAuthenticated(true);
+    localStorage.setItem('tournament_user_email', email);
+    setUserEmail(email);
+    setSuccessMessage('Вход выполнен успешно!');
+    setError('');
   };
 
   const handleLogout = () => {
@@ -693,7 +718,6 @@ const App: React.FC = () => {
   const saveTournamentRules = async () => {
     if (!tournamentRules.trim()) {
       setError('Правила не могут быть пустыми');
-      setTimeout(() => setError(''), 3000);
       return;
     }
 
@@ -704,10 +728,8 @@ const App: React.FC = () => {
       });
       setEditingRules(false);
       setSuccessMessage('Правила турнира успешно обновлены!');
-      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка сохранения правил турнира');
-      setTimeout(() => setError(''), 3000);
     }
   };
 
@@ -729,7 +751,6 @@ const App: React.FC = () => {
         rankImage: getRankImage(randomRank)
       };
     } catch (error) {
-      console.error('Error parsing tracker data:', error);
       return { 
         mmr: 'N/A', 
         rank: 'Unranked',
@@ -741,7 +762,6 @@ const App: React.FC = () => {
   const fetchPlayerData = async () => {
     if (!nickname || !trackerLink) {
       setError('Заполните никнейм и ссылку на tracker.gg');
-      setTimeout(() => setError(''), 3000);
       return;
     }
     
@@ -758,7 +778,6 @@ const App: React.FC = () => {
       });
     } catch (error) {
       setError('Ошибка получения данных с tracker.gg');
-      setTimeout(() => setError(''), 3000);
     } finally {
       setLoading(false);
     }
@@ -769,13 +788,11 @@ const App: React.FC = () => {
     
     if (!playerData) {
       setError('Сначала получите данные игрока');
-      setTimeout(() => setError(''), 3000);
       return;
     }
 
     if (myPlayer) {
       setError('Вы уже зарегистрированы в турнире!');
-      setTimeout(() => setError(''), 3000);
       return;
     }
 
@@ -800,10 +817,8 @@ const App: React.FC = () => {
       setTrackerLink('');
       setPlayerData(null);
       setSuccessMessage('Вы успешно зарегистрированы в турнире!');
-      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка регистрации в турнире');
-      setTimeout(() => setError(''), 3000);
     } finally {
       setLoading(false);
     }
@@ -839,34 +854,28 @@ const App: React.FC = () => {
       await batch.commit();
       
       setSuccessMessage('Вы вышли из турнира');
-      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка выхода из турнира');
-      setTimeout(() => setError(''), 3000);
     }
   };
 
   const deletePlayer = async (playerId: string) => {
     if (!isOrganizer) {
       setError('Только организаторы могут удалять игроков!');
-      setTimeout(() => setError(''), 3000);
       return;
     }
 
     try {
       await deleteDoc(doc(db, 'players', playerId));
       setSuccessMessage('Игрок успешно удален!');
-      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка удаления игрока');
-      setTimeout(() => setError(''), 3000);
     }
   };
 
   const deleteTeam = async (teamId: string) => {
     if (!isOrganizer) {
       setError('Только организаторы могут удалять команды!');
-      setTimeout(() => setError(''), 3000);
       return;
     }
 
@@ -882,23 +891,19 @@ const App: React.FC = () => {
 
       await batch.commit();
       setSuccessMessage('Команда успешно удалена!');
-      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка удаления команды');
-      setTimeout(() => setError(''), 3000);
     }
   };
 
   const sendApplication = async (teamId: string) => {
     if (!myPlayer) {
       setError('Сначала зарегистрируйтесь в турнире');
-      setTimeout(() => setError(''), 3000);
       return;
     }
 
     if (myTeam) {
       setError('Вы уже состоите в команде!');
-      setTimeout(() => setError(''), 3000);
       return;
     }
 
@@ -908,7 +913,6 @@ const App: React.FC = () => {
 
     if (existingApplication) {
       setError('Вы уже отправили заявку в эту команду');
-      setTimeout(() => setError(''), 3000);
       return;
     }
 
@@ -924,17 +928,15 @@ const App: React.FC = () => {
       });
       
       setSuccessMessage('Заявка отправлена! Ожидайте решения капитана.');
-      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка отправки заявки');
-      setTimeout(() => setError(''), 3000);
     }
   };
 
   const processApplication = async (applicationId: string, status: 'approved' | 'rejected') => {
     if (processingApplications.has(applicationId)) return;
     
-    setProcessingApplications(prev => new Set(prev).add(applicationId));
+    setProcessingApplications(prev => new Set([...prev, applicationId]));
     
     try {
       const application = teamApplications.find(app => app.id === applicationId);
@@ -946,7 +948,6 @@ const App: React.FC = () => {
 
         if (team.players.length >= 3) {
           setError('Команда уже заполнена (максимум 3 игрока)');
-          setTimeout(() => setError(''), 3000);
           return;
         }
 
@@ -977,10 +978,8 @@ const App: React.FC = () => {
       }
 
       setSuccessMessage(`Заявка ${status === 'approved' ? 'принята' : 'отклонена'}!`);
-      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка обработки заявки');
-      setTimeout(() => setError(''), 3000);
     } finally {
       setProcessingApplications(prev => {
         const newSet = new Set(prev);
@@ -995,20 +994,17 @@ const App: React.FC = () => {
     
     if (!myPlayer) {
       setError('Сначала зарегистрируйтесь в турнире');
-      setTimeout(() => setError(''), 3000);
       return;
     }
 
     if (myTeam) {
       setError('Вы уже состоите в команде!');
-      setTimeout(() => setError(''), 3000);
       return;
     }
 
     const userCreatedTeam = teams.find(team => team.createdBy === userEmail);
     if (userCreatedTeam) {
       setError('Вы уже создали команду! Одна команда на пользователя.');
-      setTimeout(() => setError(''), 3000);
       return;
     }
 
@@ -1034,10 +1030,8 @@ const App: React.FC = () => {
       setTeamName('');
       setTeamLogo('');
       setSuccessMessage('Команда успешно создана! Вы стали капитаном.');
-      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка создания команды');
-      setTimeout(() => setError(''), 3000);
     } finally {
       setLoading(false);
     }
@@ -1064,10 +1058,8 @@ const App: React.FC = () => {
       });
 
       setSuccessMessage('Вы вышли из команды');
-      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setError('Ошибка выхода из команды');
-      setTimeout(() => setError(''), 3000);
     }
   };
 
@@ -1080,6 +1072,14 @@ const App: React.FC = () => {
 
   if (!isAuthenticated) {
     return <LoginForm userEmail={userEmail} setUserEmail={setUserEmail} handleLogin={handleLogin} error={error} />;
+  }
+
+  if (isDataLoading) {
+    return (
+      <div style={styles.loadingContainer}>
+        <div style={styles.loadingSpinner}>Загрузка данных...</div>
+      </div>
+    );
   }
 
   return (
@@ -1109,7 +1109,7 @@ const App: React.FC = () => {
                 <Editor
                   apiKey="oloehvuqanz1w730d8n49ffecahkqxiz5w3g9tpo2l43qynn" 
                   value={tournamentRules}
-                  onEditorChange={(newValue, editor) => setTournamentRules(newValue)}
+                  onEditorChange={(newValue) => setTournamentRules(newValue)}
                   init={{
                     height: 400,
                     menubar: 'file edit insert view format table tools',
@@ -1141,7 +1141,7 @@ const App: React.FC = () => {
                         onAction: () => {
                           editor.execCommand('mceToggleFormat', false, 'neon');
                         },
-                        icon: 'lightbulb' // Использует встроенную иконку (или можно добавить кастомную)
+                        icon: 'lightbulb'
                       });
                     }
                   }}
@@ -1263,6 +1263,7 @@ const App: React.FC = () => {
 
         {/* Tab Content */}
         <div style={styles.tabContent}>
+          {loading && <div style={styles.loadingSpinner}>Загрузка...</div>}
           
           {/* Add Player Tab */}
           {activeTab === 'add-player' && (
@@ -1383,8 +1384,7 @@ const App: React.FC = () => {
                               alt={playerData.rank}
                               style={styles.rankImage}
                               onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.src = getRankImage('Unranked');
+                                (e.target as HTMLImageElement).src = getRankImage('Unranked');
                               }}
                             />
                             <div>
@@ -1422,7 +1422,6 @@ const App: React.FC = () => {
               
               {players.length === 0 ? (
                 <div style={styles.emptyState}>
-                  <div style={styles.emptyIcon}>И</div>
                   <p style={styles.emptyText}>Пока нет зарегистрированных игроков</p>
                 </div>
               ) : (
@@ -1439,8 +1438,7 @@ const App: React.FC = () => {
                           alt={player.rank}
                           style={styles.cardRankImage}
                           onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = getRankImage('Unranked');
+                            (e.target as HTMLImageElement).src = getRankImage('Unranked');
                           }}
                         />
                       </div>
@@ -1523,7 +1521,6 @@ const App: React.FC = () => {
 
               {teams.length === 0 ? (
                 <div style={styles.emptyState}>
-                  <div style={styles.emptyIcon}>К</div>
                   <p style={styles.emptyText}>Пока нет созданных команд</p>
                 </div>
               ) : (
@@ -1698,12 +1695,6 @@ const styles = {
     textAlign: 'center'
   },
   
-  organizerHintText: {
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontSize: '0.8rem',
-    margin: 0
-  },
-  
   header: {
     background: 'rgba(255, 255, 255, 0.1)',
     backdropFilter: 'blur(10px)',
@@ -1802,14 +1793,13 @@ const styles = {
     fontSize: '1rem',
     fontWeight: '500',
     cursor: 'pointer',
-    transition: 'all 0.3s',
+    transition: 'border-bottom 0.3s ease',
     borderBottom: '3px solid transparent'
   },
   
   navButtonActive: {
     color: 'white',
-    borderBottomColor: '#10b981',
-    background: 'rgba(255, 255, 255, 0.1)'
+    borderBottomColor: '#10b981'
   },
   
   main: {
@@ -1974,7 +1964,8 @@ const styles = {
     fontSize: '1.1rem',
     fontWeight: '600',
     cursor: 'pointer',
-    marginTop: '1rem'
+    marginTop: '1rem',
+    transition: 'opacity 0.3s'
   },
   
   secondaryButton: {
@@ -1985,7 +1976,8 @@ const styles = {
     borderRadius: '8px',
     fontSize: '1rem',
     fontWeight: '500',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transition: 'background 0.3s'
   },
   
   buttonDisabled: {
@@ -2052,12 +2044,6 @@ const styles = {
     textAlign: 'center',
     padding: '4rem 2rem',
     color: 'rgba(255, 255, 255, 0.7)'
-  },
-  
-  emptyIcon: {
-    fontSize: '4rem',
-    marginBottom: '1rem',
-    opacity: '0.5'
   },
   
   emptyText: {
@@ -2540,12 +2526,6 @@ const styles = {
     color: 'rgba(255, 255, 255, 0.7)'
   },
   
-  emptyBracketIcon: {
-    fontSize: '4rem',
-    marginBottom: '1rem',
-    opacity: '0.5'
-  },
-  
   emptyBracketText: {
     fontSize: '1.2rem',
     margin: 0
@@ -2622,21 +2602,6 @@ const styles = {
     margin: 0
   },
   
-  rulesTextarea: {
-    width: '100%',
-    background: 'rgba(0, 0, 0, 0.3)',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    borderRadius: '8px',
-    color: 'white',
-    padding: '1rem',
-    fontSize: '0.9rem',
-    lineHeight: '1.5',
-    fontFamily: 'inherit',
-    resize: 'vertical',
-    minHeight: '300px',
-    marginBottom: '1rem'
-  },
-  
   modalActions: {
     display: 'flex',
     gap: '1rem',
@@ -2675,6 +2640,20 @@ const styles = {
     fontWeight: '500',
     fontSize: '1rem',
     width: '100%'
+  },
+
+  // New loading styles
+  loadingContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100vh',
+    color: 'white'
+  },
+
+  loadingSpinner: {
+    color: 'white',
+    fontSize: '1.5rem'
   }
 } as const;
 
