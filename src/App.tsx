@@ -1224,23 +1224,25 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Navigation */}
-      <nav style={styles.nav}>
-        <div style={styles.navContent}>
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                ...styles.navButton,
-                ...(activeTab === tab.id ? styles.navButtonActive : {})
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </nav>
+      {/* Navigation - ВСЕГДА ВИДИМА ПРИ АУТЕНТИФИКАЦИИ */}
+      {isAuthenticated && (
+        <nav style={styles.nav}>
+          <div style={styles.navContent}>
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  ...styles.navButton,
+                  ...(activeTab === tab.id ? styles.navButtonActive : {})
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </nav>
+      )}
 
       {/* Main Content */}
       <main style={styles.main}>
