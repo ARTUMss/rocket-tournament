@@ -124,7 +124,7 @@ interface LoginFormProps {
 }
 
 const Particles: React.FC = () => {
-  const particles = Array.from({ length: 8 }); // Не много, чтобы не засорять (8 частиц)
+  const particles = Array.from({ length: 20 });
 
   return (
     <div style={styles.particlesContainer}>
@@ -135,11 +135,12 @@ const Particles: React.FC = () => {
             ...styles.particle,
             left: `${Math.random() * 100}%`,
             top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 5}s`, // Random delay для асинхронности
-            animationDuration: `${8 + Math.random() * 4}s`, // Разная скорость (8-12s)
-            width: `${4 + Math.random() * 6}px`, // Размер 4-10px
-            height: `${4 + Math.random() * 6}px`,
-            opacity: 0.3 + Math.random() * 0.5, // Полупрозрачные
+            animationDelay: `${Math.random() * 10}s`,
+            animationDuration: `${20 + Math.random() * 10}s`,
+            width: `${3 + Math.random() * 4}px`,
+            height: `${3 + Math.random() * 4}px`,
+            background: `hsl(${Math.random() * 360}, 70%, 80%)`,
+            opacity: 0.5 + Math.random() * 0.3,
           }}
         />
       ))}
@@ -158,7 +159,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
 
   return (
     <div style={styles.loginContainer}>
-      <Particles /> {/* Добавляем анимацию частиц только здесь */}
+      <Particles />
       <div style={styles.loginForm}>
         <h2 style={styles.loginTitle}>Вход в турнир</h2>
         <p style={styles.loginSubtitle}>
@@ -1676,7 +1677,7 @@ const App: React.FC = () => {
 const styles = {
   container: {
     minHeight: '100vh',
-    background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+    background: '#0d1117', // Тёмный фон как в SuperGrok
     fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
   },
   
@@ -1686,8 +1687,8 @@ const styles = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
-    position: 'relative', // Для позиционирования частиц
+    background: '#0d1117', // Тёмный фон как в SuperGrok
+    position: 'relative',
     overflow: 'hidden'
   },
   
@@ -1983,7 +1984,7 @@ const styles = {
   
   submitButton: {
     padding: '1rem 2rem',
-    background: 'linear-gradient(45deg, #10b981, #059669)',
+    background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)', // Градиент как в SuperGrok
     color: 'white',
     border: 'none',
     borderRadius: '8px',
@@ -1991,7 +1992,8 @@ const styles = {
     fontWeight: '600',
     cursor: 'pointer',
     marginTop: '1rem',
-    transition: 'opacity 0.3s'
+    transition: 'all 0.3s ease',
+    boxShadow: '0 0 15px rgba(99, 102, 241, 0.5)', // Неоновое свечение
   },
   
   secondaryButton: {
@@ -2572,7 +2574,7 @@ const styles = {
   },
   
   modalContent: {
-    background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+    background: '#0d1117', // Тёмный фон для модалки
     borderRadius: '12px',
     padding: '2rem',
     maxWidth: '600px',
@@ -2689,37 +2691,42 @@ const styles = {
     left: 0,
     width: '100%',
     height: '100%',
-    zIndex: 1, // Под формой логина
-    pointerEvents: 'none', // Не мешает взаимодействию
+    zIndex: 1,
+    pointerEvents: 'none',
     overflow: 'hidden'
   },
   particle: {
     position: 'absolute',
-    background: 'rgba(255, 255, 255, 0.8)',
     borderRadius: '50%',
-    animation: 'float 10s infinite ease-in-out',
-    boxShadow: '0 0 8px 2px rgba(255, 255, 255, 0.4)', // Лёгкое свечение для "glowing" эффекта
+    animation: 'float linear infinite',
+    zIndex: 1
   }
 } as const;
 
-// Keyframes для анимации (добавляем глобально, но в React это можно вставить в <style> или использовать styled-components, здесь - в объекте стилей)
-const globalStyles = document.createElement('style');
-globalStyles.innerHTML = `
-  @keyframes float {
-    0% {
-      transform: translate(0, 0) scale(1);
-      opacity: 0.8;
+// Добавляем глобальные стили для анимации и кнопки
+useEffect(() => {
+  const globalStyles = document.createElement('style');
+  globalStyles.innerHTML = `
+    @keyframes float {
+      0% {
+        transform: translate(0, 0) scale(1);
+        opacity: 0.5;
+      }
+      50% {
+        transform: translate(${Math.random() * 20 - 10}px, -30px) scale(1.2);
+        opacity: 0.8;
+      }
+      100% {
+        transform: translate(0, 0) scale(1);
+        opacity: 0.5;
+      }
     }
-    50% {
-      transform: translate(${Math.random() * 20 - 10}px, -30px) scale(1.2); // Лёгкое плавание вверх-вниз с горизонтальным сдвигом
-      opacity: 0.4;
-    }
-    100% {
-      transform: translate(0, 0) scale(1);
-      opacity: 0.8;
-    }
-  }
-`;
-document.head.appendChild(globalStyles);
+  `;
+  document.head.appendChild(globalStyles);
 
+  return () => {
+    document.head.removeChild(globalStyles);
+    return undefined; // Explicitly return void (undefined)
+  };
+}, []);
 export default App;
