@@ -124,7 +124,7 @@ interface LoginFormProps {
 }
 
 const Particles: React.FC = () => {
-  const particles = Array.from({ length: 8 }); // Оставляем 8 частиц для минимализма
+  const particles = Array.from({ length: 6 }); // Уменьшаем до 6 для большего минимализма
 
   return (
     <div style={styles.particlesContainer}>
@@ -135,11 +135,11 @@ const Particles: React.FC = () => {
             ...styles.particle,
             left: `${Math.random() * 100}%`,
             top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 15}s`, // Увеличиваем задержку до 15 секунд для асинхронности
-            animationDuration: `${40 + Math.random() * 20}s`, // Увеличиваем до 40-60 секунд для очень медленного движения
-            width: `${4 + Math.random() * 6}px`,
-            height: `${4 + Math.random() * 6}px`,
-            opacity: 0.2 + Math.random() * 0.4,
+            animationDelay: `${Math.random() * 20}s`, // Задержка до 20 секунд для естественности
+            animationDuration: `${60 + Math.random() * 30}s`, // 60-90 секунд для экстремально медленного движения
+            width: `${2 + Math.random() * 3}px`, // Ещё меньше: 2-5px
+            height: `${2 + Math.random() * 3}px`,
+            opacity: 0.15 + Math.random() * 0.25, // Более слабая прозрачность для элегантности
           }}
         />
       ))}
@@ -2696,10 +2696,10 @@ const styles = {
   },
   particle: {
     position: 'absolute',
-    background: 'rgba(255, 255, 255, 0.8)',
+    background: 'rgba(255, 255, 255, 0.9)',
     borderRadius: '50%',
-    animation: 'float 10s infinite ease-in-out',
-    boxShadow: '0 0 8px 2px rgba(255, 255, 255, 0.4)', // Лёгкое свечение для "glowing" эффекта
+    animation: 'float 75s infinite ease-in-out',
+    boxShadow: '0 0 8px 2px rgba(255, 255, 255, 0.3)', // Лёгкое свечение для "glowing" эффекта
   }
 } as const;
 
@@ -2709,23 +2709,23 @@ globalStyles.innerHTML = `
   @keyframes float {
     0% {
       transform: translateY(0) scale(1);
-      opacity: 0.8;
+      opacity: 0.7;
     }
-    25% {
-      transform: translateY(-30px) scale(1.05); // Меньший сдвиг для плавности
-      opacity: 0.6;
+    20% {
+      transform: translateY(-20px) scale(1.02); // Очень маленький подъем
+      opacity: 0.5;
     }
     50% {
-      transform: translateY(-60px) scale(1.1); // Максимальный подъем
-      opacity: 0.4;
+      transform: translateY(-40px) scale(1.05); // Максимум -40px
+      opacity: 0.3;
     }
-    75% {
-      transform: translateY(-30px) scale(1.05);
-      opacity: 0.6;
+    80% {
+      transform: translateY(-20px) scale(1.02);
+      opacity: 0.5;
     }
     100% {
       transform: translateY(0) scale(1);
-      opacity: 0.8;
+      opacity: 0.7;
     }
   }
 `;
