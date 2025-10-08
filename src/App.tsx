@@ -124,7 +124,7 @@ interface LoginFormProps {
 }
 
 const Particles: React.FC = () => {
-  const particles = Array.from({ length: 8 }); // Не много, чтобы не засорять (8 частиц)
+  const particles = Array.from({ length: 8 }); // Оставляем 8 частиц для минимализма
 
   return (
     <div style={styles.particlesContainer}>
@@ -135,11 +135,11 @@ const Particles: React.FC = () => {
             ...styles.particle,
             left: `${Math.random() * 100}%`,
             top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 10}s`, // Увеличенная задержка для асинхронности
-            animationDuration: `${25 + Math.random() * 15}s`, // Медленнее: 25-40 секунд для плавности
-            width: `${4 + Math.random() * 6}px`, // Размер 4-10px
+            animationDelay: `${Math.random() * 15}s`, // Увеличиваем задержку до 15 секунд для асинхронности
+            animationDuration: `${40 + Math.random() * 20}s`, // Увеличиваем до 40-60 секунд для очень медленного движения
+            width: `${4 + Math.random() * 6}px`,
             height: `${4 + Math.random() * 6}px`,
-            opacity: 0.2 + Math.random() * 0.4, // Более прозрачные для мягкости
+            opacity: 0.2 + Math.random() * 0.4,
           }}
         />
       ))}
@@ -2711,9 +2711,17 @@ globalStyles.innerHTML = `
       transform: translateY(0) scale(1);
       opacity: 0.8;
     }
+    25% {
+      transform: translateY(-30px) scale(1.05); // Меньший сдвиг для плавности
+      opacity: 0.6;
+    }
     50% {
-      transform: translateY(-50px) scale(1.1); // Более плавное движение, без случайного горизонтального сдвига для простоты и плавности
+      transform: translateY(-60px) scale(1.1); // Максимальный подъем
       opacity: 0.4;
+    }
+    75% {
+      transform: translateY(-30px) scale(1.05);
+      opacity: 0.6;
     }
     100% {
       transform: translateY(0) scale(1);
