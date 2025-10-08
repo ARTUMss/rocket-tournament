@@ -124,7 +124,7 @@ interface LoginFormProps {
 }
 
 const Particles: React.FC = () => {
-  const particles = Array.from({ length: 6 }); // Уменьшаем до 6 для большего минимализма
+  const particles = Array.from({ length: 5 }); // Уменьшаем до 5 для максимального минимализма
 
   return (
     <div style={styles.particlesContainer}>
@@ -135,11 +135,11 @@ const Particles: React.FC = () => {
             ...styles.particle,
             left: `${Math.random() * 100}%`,
             top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 20}s`, // Задержка до 20 секунд для естественности
-            animationDuration: `${60 + Math.random() * 30}s`, // 60-90 секунд для экстремально медленного движения
-            width: `${2 + Math.random() * 3}px`, // Ещё меньше: 2-5px
-            height: `${2 + Math.random() * 3}px`,
-            opacity: 0.15 + Math.random() * 0.25, // Более слабая прозрачность для элегантности
+            animationDelay: `${Math.random() * 30}s`, // Задержка до 30 секунд
+            animationDuration: `${90 + Math.random() * 60}s`, // 90-150 секунд для экстремально медленного движения
+            width: `${1.5 + Math.random() * 2}px`, // Ещё меньше: 1.5-3.5px
+            height: `${1.5 + Math.random() * 2}px`,
+            opacity: 0.1 + Math.random() * 0.2, // Ещё более слабая прозрачность
           }}
         />
       ))}
@@ -2696,10 +2696,10 @@ const styles = {
   },
   particle: {
     position: 'absolute',
-    background: 'rgba(255, 255, 255, 0.9)',
+    background: 'rgba(255, 255, 255, 0.95)', // Чуть ярче для заметности
     borderRadius: '50%',
-    animation: 'float 75s infinite ease-in-out',
-    boxShadow: '0 0 8px 2px rgba(255, 255, 255, 0.3)', // Лёгкое свечение для "glowing" эффекта
+    animation: 'float 120s infinite linear', // Базовая длительность 120 секунд, линейное движение
+    boxShadow: '0 0 4px 0.5px rgba(255, 255, 255, 0.2)', // Ещё более мягкое свечение
   }
 } as const;
 
@@ -2709,23 +2709,23 @@ globalStyles.innerHTML = `
   @keyframes float {
     0% {
       transform: translateY(0) scale(1);
-      opacity: 0.7;
+      opacity: 0.6;
     }
-    20% {
-      transform: translateY(-20px) scale(1.02); // Очень маленький подъем
-      opacity: 0.5;
+    25% {
+      transform: translateY(-15px) scale(1.01); // Минимальный подъем
+      opacity: 0.4;
     }
     50% {
-      transform: translateY(-40px) scale(1.05); // Максимум -40px
+      transform: translateY(-25px) scale(1.02); // Максимум -25px
       opacity: 0.3;
     }
-    80% {
-      transform: translateY(-20px) scale(1.02);
-      opacity: 0.5;
+    75% {
+      transform: translateY(-15px) scale(1.01);
+      opacity: 0.4;
     }
     100% {
       transform: translateY(0) scale(1);
-      opacity: 0.7;
+      opacity: 0.6;
     }
   }
 `;
