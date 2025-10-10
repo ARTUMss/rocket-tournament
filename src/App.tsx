@@ -124,7 +124,7 @@ interface LoginFormProps {
 }
 
 const Particles: React.FC = () => {
-  const particles = Array.from({ length: 5 }); // Уменьшаем до 5 для максимального минимализма
+  const particles = Array.from({ length: 5 });
 
   return (
     <div style={styles.particlesContainer}>
@@ -135,11 +135,11 @@ const Particles: React.FC = () => {
             ...styles.particle,
             left: `${Math.random() * 100}%`,
             top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 30}s`, // Задержка до 30 секунд
-            animationDuration: `${90 + Math.random() * 60}s`, // 90-150 секунд для экстремально медленного движения
-            width: `${1.5 + Math.random() * 2}px`, // Ещё меньше: 1.5-3.5px
+            animationDelay: `${Math.random() * 30}s`,
+            animationDuration: `${90 + Math.random() * 60}s`,
+            width: `${1.5 + Math.random() * 2}px`,
             height: `${1.5 + Math.random() * 2}px`,
-            opacity: 0.1 + Math.random() * 0.2, // Ещё более слабая прозрачность
+            opacity: 0.1 + Math.random() * 0.2,
           }}
         />
       ))}
@@ -158,12 +158,25 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
 
   return (
     <div style={styles.loginContainer}>
-      <Particles /> {/* Добавляем анимацию частиц только здесь */}
+      <Particles />
+      
+      {/* GIF Background */}
+      <div style={styles.gifBackground}>
+        <img 
+          src="https://ibb.co/RTD466Py" 
+          alt="Rocket League Background"
+          style={styles.gifImage}
+        />
+        <div style={styles.gifOverlay}></div>
+      </div>
+      
       <div style={styles.loginForm}>
-        <h2 style={styles.loginTitle}>Вход в турнир</h2>
-        <p style={styles.loginSubtitle}>
-          Введите ваш email для участия в турнире
-        </p>
+        <div style={styles.loginHeader}>
+          <h2 style={styles.loginTitle}>Вход в турнир</h2>
+          <p style={styles.loginSubtitle}>
+            Введите ваш email для участия в турнире
+          </p>
+        </div>
         
         {error && (
           <div style={styles.errorMessage}>
@@ -207,6 +220,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
           >
             Войти в турнир
           </button>
+        </div>
+
+        <div style={styles.organizerHint}>
+          <p style={styles.hintText}>Организаторы: используйте специальный код доступа</p>
         </div>
       </div>
     </div>
@@ -1686,39 +1703,97 @@ const styles = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    background: '#000000', // Total black как в Grok
+    background: '#000000',
     position: 'relative',
     overflow: 'hidden'
   },
   
+  // Новые стили для GIF фона
+  gifBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    zIndex: 1
+  },
+  
+  gifImage: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    filter: 'brightness(0.3) contrast(1.1)'
+  },
+  
+  gifOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    background: 'linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(30,60,114,0.4) 100%)',
+    zIndex: 2
+  },
+  
   loginForm: {
     background: 'rgba(255, 255, 255, 0.1)',
-    backdropFilter: 'blur(10px)',
-    padding: '3rem',
-    borderRadius: '12px',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(20px)',
+    padding: '3rem 2.5rem',
+    borderRadius: '20px',
+    border: '1px solid rgba(255, 255, 255, 0.25)',
     width: '100%',
-    maxWidth: '400px',
-    zIndex: 2
+    maxWidth: '450px',
+    zIndex: 3,
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+    position: 'relative'
+  },
+  
+  loginHeader: {
+    textAlign: 'center',
+    marginBottom: '2rem'
   },
   
   loginTitle: {
     color: 'white',
     textAlign: 'center',
-    marginBottom: '0.5rem',
-    fontSize: '2rem'
+    marginBottom: '0.75rem',
+    fontSize: '2.2rem',
+    fontWeight: '700',
+    background: 'linear-gradient(45deg, #fff, #a5b4fc)',
+    backgroundClip: 'text',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    textShadow: '0 2px 10px rgba(165, 180, 252, 0.3)'
   },
   
   loginSubtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
-    marginBottom: '2rem'
+    marginBottom: '0',
+    fontSize: '1.1rem',
+    lineHeight: '1.5'
   },
   
   buttonContainer: {
     display: 'flex',
     justifyContent: 'center',
-    marginTop: '1.5rem'
+    marginTop: '2rem'
+  },
+  
+  organizerHint: {
+    marginTop: '1.5rem',
+    padding: '1rem',
+    background: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: '10px',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    textAlign: 'center'
+  },
+  
+  hintText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: '0.85rem',
+    margin: 0,
+    fontStyle: 'italic'
   },
   
   header: {
@@ -1941,7 +2016,9 @@ const styles = {
     borderRadius: '8px',
     color: 'white',
     fontSize: '1rem',
-    fontWeight: '500'
+    fontWeight: '500',
+    transition: 'all 0.3s ease',
+    outline: 'none'
   },
   
   inputError: {
@@ -1983,16 +2060,18 @@ const styles = {
   
   submitButton: {
     padding: '1rem 2rem',
-    background: '#ffffff', // Белый фон как в SuperGrok
-    color: '#000000', // Черный текст
+    background: '#ffffff',
+    color: '#000000',
     border: 'none',
-    borderRadius: '20px', // Более скругленный как в SuperGrok
+    borderRadius: '20px',
     fontSize: '1.1rem',
     fontWeight: '600',
     cursor: 'pointer',
     marginTop: '1rem',
-    transition: 'opacity 0.3s',
-    boxShadow: '0 0 10px rgba(255, 255, 255, 0.5)' // Легкое свечение
+    transition: 'all 0.3s ease',
+    boxShadow: '0 0 15px rgba(255, 255, 255, 0.3)',
+    position: 'relative',
+    overflow: 'hidden'
   },
   
   secondaryButton: {
@@ -2690,20 +2769,20 @@ const styles = {
     left: 0,
     width: '100%',
     height: '100%',
-    zIndex: 1, // Под формой логина
-    pointerEvents: 'none', // Не мешает взаимодействию
+    zIndex: 2,
+    pointerEvents: 'none',
     overflow: 'hidden'
   },
   particle: {
     position: 'absolute',
-    background: 'rgba(255, 255, 255, 0.95)', // Чуть ярче для заметности
+    background: 'rgba(255, 255, 255, 0.95)',
     borderRadius: '50%',
-    animation: 'float 120s infinite linear', // Базовая длительность 120 секунд, линейное движение
-    boxShadow: '0 0 4px 0.5px rgba(255, 255, 255, 0.2)', // Ещё более мягкое свечение
+    animation: 'float 120s infinite linear',
+    boxShadow: '0 0 4px 0.5px rgba(255, 255, 255, 0.2)',
   }
 } as const;
 
-// Keyframes для анимации (добавляем глобально, но в React это можно вставить в <style> или использовать styled-components, здесь - в объекте стилей)
+// Keyframes для анимации
 const globalStyles = document.createElement('style');
 globalStyles.innerHTML = `
   @keyframes float {
@@ -2712,11 +2791,11 @@ globalStyles.innerHTML = `
       opacity: 0.6;
     }
     25% {
-      transform: translateY(-15px) scale(1.01); // Минимальный подъем
+      transform: translateY(-15px) scale(1.01);
       opacity: 0.4;
     }
     50% {
-      transform: translateY(-25px) scale(1.02); // Максимум -25px
+      transform: translateY(-25px) scale(1.02);
       opacity: 0.3;
     }
     75% {
