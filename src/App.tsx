@@ -136,7 +136,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
   return (
     <div style={styles.loginContainer}>
       <img
-        src="https://i.ibb.co/0RJJYkHR/7cf9d1447585294415a64558ca6203333338s-ezgif-com-optimize.g"
+        src="https://i.ibb.co/xq7LjmhR/b2fe91505525ba942ae7d85a2cd7a6d4-ezgif-com-rotate.gif"
         alt="background animation"
         style={styles.loginBackground}
       />
