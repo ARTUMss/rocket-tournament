@@ -1653,17 +1653,17 @@ const styles = {
   
   // Login Styles
   loginBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    zIndex: 0,
-    opacity: 0.5,
-    filter: 'blur(2px)',
-    transform: 'scale(1.05)',
-  },
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  width: '110%', 
+  height: '110%', 
+  objectFit: 'contain', 
+  zIndex: 0,
+  opacity: 0.5,
+  filter: 'blur(1.5px)', 
+  transform: 'scale(0.85) translate(-7%, -7%)', 
+},
 
   loginContainer: {
     minHeight: '100vh',
