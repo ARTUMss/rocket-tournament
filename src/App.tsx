@@ -123,29 +123,6 @@ interface LoginFormProps {
   error: string;
 }
 
-const Particles: React.FC = () => {
-  const particles = Array.from({ length: 5 });
-
-  return (
-    <div style={styles.particlesContainer}>
-      {particles.map((_, index) => (
-        <div
-          key={index}
-          style={{
-            ...styles.particle,
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 30}s`,
-            animationDuration: `${90 + Math.random() * 60}s`,
-            width: `${1.5 + Math.random() * 2}px`,
-            height: `${1.5 + Math.random() * 2}px`,
-            opacity: 0.1 + Math.random() * 0.2,
-          }}
-        />
-      ))}
-    </div>
-  );
-};
 
 const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLogin, error }) => {
   const emailInputRef = useRef<HTMLInputElement>(null);
@@ -158,33 +135,23 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
 
   return (
     <div style={styles.loginContainer}>
-      <Particles />
-      
-      {/* GIF Background */}
-      <div style={styles.gifBackground}>
-        <img 
-          src="https://ibb.co/RTD466Py" 
-          alt="Rocket League Background"
-          style={styles.gifImage}
-        />
-        <div style={styles.gifOverlay}></div>
-      </div>
-      
+      <img
+        src="https://i.ibb.co/XxCk55p8/7362759c02faa8997f142569eeffd872.gif"
+        alt="background animation"
+        style={styles.loginBackground}
+      />
+
       <div style={styles.loginForm}>
-        <div style={styles.loginHeader}>
-          <h2 style={styles.loginTitle}>Вход в турнир</h2>
-          <p style={styles.loginSubtitle}>
-            Введите ваш email для участия в турнире
-          </p>
-        </div>
-        
+        <h2 style={styles.loginTitle}>Вход в турнир</h2>
+        <p style={styles.loginSubtitle}>Введите ваш email для участия в турнире</p>
+
         {error && (
           <div style={styles.errorMessage}>
             <span style={styles.errorIcon}>!</span>
             <span>{error}</span>
           </div>
         )}
-        
+
         <div style={styles.formGroup}>
           <input
             ref={emailInputRef}
@@ -192,43 +159,30 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
             value={userEmail}
             onChange={(e) => setUserEmail(e.target.value)}
             placeholder="your@email.com"
-            style={{
-              ...styles.input,
-              ...(error && styles.inputError)
-            }}
+            style={{ ...styles.input, ...(error && styles.inputError) }}
             onKeyPress={(e) => {
               if (e.key === 'Enter') {
                 handleLogin(userEmail);
               }
             }}
           />
-          {error && (
-            <div style={styles.errorHint}>
-              Пример корректного email: example@domain.com
-            </div>
-          )}
+          {error && <div style={styles.errorHint}>Пример корректного email: example@domain.com</div>}
         </div>
-        
+
         <div style={styles.buttonContainer}>
           <button
             onClick={() => handleLogin(userEmail)}
             disabled={!userEmail}
-            style={{
-              ...styles.submitButton,
-              ...(!userEmail && styles.buttonDisabled)
-            }}
+            style={{ ...styles.submitButton, ...(!userEmail && styles.buttonDisabled) }}
           >
             Войти в турнир
           </button>
-        </div>
-
-        <div style={styles.organizerHint}>
-          <p style={styles.hintText}>Организаторы: используйте специальный код доступа</p>
         </div>
       </div>
     </div>
   );
 };
+
 
 // Компонент турнирной сетки
 interface BracketProps {
@@ -1698,102 +1652,57 @@ const styles = {
   },
   
   // Login Styles
+  loginBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    zIndex: 0,
+    opacity: 0.5,
+    filter: 'blur(2px)',
+    transform: 'scale(1.05)',
+  },
+
   loginContainer: {
     minHeight: '100vh',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    background: '#000000',
+    background: '#000000', // Total black как в Grok
     position: 'relative',
     overflow: 'hidden'
   },
   
-  // Новые стили для GIF фона
-  gifBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    zIndex: 1
-  },
-  
-  gifImage: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    filter: 'brightness(0.3) contrast(1.1)'
-  },
-  
-  gifOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    background: 'linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(30,60,114,0.4) 100%)',
-    zIndex: 2
-  },
-  
   loginForm: {
     background: 'rgba(255, 255, 255, 0.1)',
-    backdropFilter: 'blur(20px)',
-    padding: '3rem 2.5rem',
-    borderRadius: '20px',
-    border: '1px solid rgba(255, 255, 255, 0.25)',
+    backdropFilter: 'blur(10px)',
+    padding: '3rem',
+    borderRadius: '12px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
     width: '100%',
-    maxWidth: '450px',
-    zIndex: 3,
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-    position: 'relative'
-  },
-  
-  loginHeader: {
-    textAlign: 'center',
-    marginBottom: '2rem'
+    maxWidth: '400px',
+    zIndex: 2
   },
   
   loginTitle: {
     color: 'white',
     textAlign: 'center',
-    marginBottom: '0.75rem',
-    fontSize: '2.2rem',
-    fontWeight: '700',
-    background: 'linear-gradient(45deg, #fff, #a5b4fc)',
-    backgroundClip: 'text',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-    textShadow: '0 2px 10px rgba(165, 180, 252, 0.3)'
+    marginBottom: '0.5rem',
+    fontSize: '2rem'
   },
   
   loginSubtitle: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
-    marginBottom: '0',
-    fontSize: '1.1rem',
-    lineHeight: '1.5'
+    marginBottom: '2rem'
   },
   
   buttonContainer: {
     display: 'flex',
     justifyContent: 'center',
-    marginTop: '2rem'
-  },
-  
-  organizerHint: {
-    marginTop: '1.5rem',
-    padding: '1rem',
-    background: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: '10px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    textAlign: 'center'
-  },
-  
-  hintText: {
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontSize: '0.85rem',
-    margin: 0,
-    fontStyle: 'italic'
+    marginTop: '1.5rem'
   },
   
   header: {
@@ -2016,9 +1925,7 @@ const styles = {
     borderRadius: '8px',
     color: 'white',
     fontSize: '1rem',
-    fontWeight: '500',
-    transition: 'all 0.3s ease',
-    outline: 'none'
+    fontWeight: '500'
   },
   
   inputError: {
@@ -2060,18 +1967,16 @@ const styles = {
   
   submitButton: {
     padding: '1rem 2rem',
-    background: '#ffffff',
-    color: '#000000',
+    background: '#ffffff', // Белый фон как в SuperGrok
+    color: '#000000', // Черный текст
     border: 'none',
-    borderRadius: '20px',
+    borderRadius: '20px', // Более скругленный как в SuperGrok
     fontSize: '1.1rem',
     fontWeight: '600',
     cursor: 'pointer',
     marginTop: '1rem',
-    transition: 'all 0.3s ease',
-    boxShadow: '0 0 15px rgba(255, 255, 255, 0.3)',
-    position: 'relative',
-    overflow: 'hidden'
+    transition: 'opacity 0.3s',
+    boxShadow: '0 0 10px rgba(255, 255, 255, 0.5)' // Легкое свечение
   },
   
   secondaryButton: {
@@ -2769,20 +2674,20 @@ const styles = {
     left: 0,
     width: '100%',
     height: '100%',
-    zIndex: 2,
-    pointerEvents: 'none',
+    zIndex: 1, // Под формой логина
+    pointerEvents: 'none', // Не мешает взаимодействию
     overflow: 'hidden'
   },
   particle: {
     position: 'absolute',
-    background: 'rgba(255, 255, 255, 0.95)',
+    background: 'rgba(255, 255, 255, 0.95)', // Чуть ярче для заметности
     borderRadius: '50%',
-    animation: 'float 120s infinite linear',
-    boxShadow: '0 0 4px 0.5px rgba(255, 255, 255, 0.2)',
+    animation: 'float 120s infinite linear', // Базовая длительность 120 секунд, линейное движение
+    boxShadow: '0 0 4px 0.5px rgba(255, 255, 255, 0.2)', // Ещё более мягкое свечение
   }
 } as const;
 
-// Keyframes для анимации
+// Keyframes для анимации (добавляем глобально, но в React это можно вставить в <style> или использовать styled-components, здесь - в объекте стилей)
 const globalStyles = document.createElement('style');
 globalStyles.innerHTML = `
   @keyframes float {
@@ -2791,11 +2696,11 @@ globalStyles.innerHTML = `
       opacity: 0.6;
     }
     25% {
-      transform: translateY(-15px) scale(1.01);
+      transform: translateY(-15px) scale(1.01); // Минимальный подъем
       opacity: 0.4;
     }
     50% {
-      transform: translateY(-25px) scale(1.02);
+      transform: translateY(-25px) scale(1.02); // Максимум -25px
       opacity: 0.3;
     }
     75% {
