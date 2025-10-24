@@ -1,23 +1,24 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { Editor } from '@tinymce/tinymce-react';
 
-// Firebase Config
+// База
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "your-firebase-api-key",
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "rocket-a799b.firebaseapp.com",
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "rocket-a799b",
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "rocket-a799b.firebasestorage.app",
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "678735595601",
-  appId: process.env.REACT_APP_FIREBASE_APP_ID || "1:678735595601:web:cd917684a68a0bffdcd070",
-  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || "G-GZTHX189LL"
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Интерфейсы для типов
+// Интерфейс
 interface Player {
   id: string;
   nickname: string;
@@ -74,7 +75,6 @@ interface OrganizerInfo {
   color: string;
 }
 
-// Rank images mapping
 interface RankImages {
   [key: string]: string;
 }
@@ -109,11 +109,11 @@ const getRankImage = (rank: string): string => {
   return rankImages[rank] || rankImages['Unranked'];
 };
 
-// Организаторы с дополнительной информацией
+// Орга
 const ORGANIZERS: OrganizerInfo[] = [
-  { code: 'RL2024-ORG-7B9X2K', name: 'ARTUM', role: 'Кодер', color: '#ef4444' },
-  { code: 'TOURNEY-MASTER-5F8P', name: 'Sferov', role: 'Руководитель', color: '#3b82f6' },
-  { code: 'CHAMP-ACCESS-3R6L9Z', name: 'twinkey', role: 'Организатор', color: '#10b981' }
+  { code: process.env.REACT_APP_ORGANIZER_CODE_1 || 'DEFAULT_CODE_1', name: 'ARTUM', role: 'Кодер', color: '#ef4444' },
+  { code: process.env.REACT_APP_ORGANIZER_CODE_2 || 'DEFAULT_CODE_2', name: 'Sferov', role: 'Руководитель', color: '#3b82f6' },
+  { code: process.env.REACT_APP_ORGANIZER_CODE_3 || 'DEFAULT_CODE_3', name: 'twinkey', role: 'Организатор', color: '#10b981' }
 ];
 
 interface LoginFormProps {
@@ -123,6 +123,29 @@ interface LoginFormProps {
   error: string;
 }
 
+const Particles: React.FC = () => {
+  const particles = Array.from({ length: 5 });
+
+  return (
+    <div style={styles.particlesContainer}>
+      {particles.map((_, index) => (
+        <div
+          key={index}
+          style={{
+            ...styles.particle,
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            animationDelay: `${Math.random() * 30}s`,
+            animationDuration: `${90 + Math.random() * 60}s`,
+            width: `${1.5 + Math.random() * 2}px`,
+            height: `${1.5 + Math.random() * 2}px`,
+            opacity: 0.1 + Math.random() * 0.2,
+          }}
+        />
+      ))}
+    </div>
+  );
+};
 
 const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLogin, error }) => {
   const emailInputRef = useRef<HTMLInputElement>(null);
@@ -135,23 +158,20 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
 
   return (
     <div style={styles.loginContainer}>
-      <img
-        src="https://i.ibb.co/xq7LjmhR/b2fe91505525ba942ae7d85a2cd7a6d4-ezgif-com-rotate.gif"
-        alt="background animation"
-        style={styles.loginBackground}
-      />
-
+      <Particles />
       <div style={styles.loginForm}>
         <h2 style={styles.loginTitle}>Вход в турнир</h2>
-        <p style={styles.loginSubtitle}>Введите ваш email для участия в турнире</p>
-
+        <p style={styles.loginSubtitle}>
+          Введите ваш email для участия в турнире
+        </p>
+        
         {error && (
           <div style={styles.errorMessage}>
             <span style={styles.errorIcon}>!</span>
             <span>{error}</span>
           </div>
         )}
-
+        
         <div style={styles.formGroup}>
           <input
             ref={emailInputRef}
@@ -159,21 +179,31 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
             value={userEmail}
             onChange={(e) => setUserEmail(e.target.value)}
             placeholder="your@email.com"
-            style={{ ...styles.input, ...(error && styles.inputError) }}
+            style={{
+              ...styles.input,
+              ...(error && styles.inputError)
+            }}
             onKeyPress={(e) => {
               if (e.key === 'Enter') {
                 handleLogin(userEmail);
               }
             }}
           />
-          {error && <div style={styles.errorHint}>Пример корректного email: example@domain.com</div>}
+          {error && (
+            <div style={styles.errorHint}>
+              Пример корректного email: example@domain.com
+            </div>
+          )}
         </div>
-
+        
         <div style={styles.buttonContainer}>
           <button
             onClick={() => handleLogin(userEmail)}
             disabled={!userEmail}
-            style={{ ...styles.submitButton, ...(!userEmail && styles.buttonDisabled) }}
+            style={{
+              ...styles.submitButton,
+              ...(!userEmail && styles.buttonDisabled)
+            }}
           >
             Войти в турнир
           </button>
@@ -183,8 +213,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ userEmail, setUserEmail, handleLo
   );
 };
 
-
-// Компонент турнирной сетки
 interface BracketProps {
   players: Player[];
   teams: Team[];
@@ -204,7 +232,6 @@ const TournamentBracket: React.FC<BracketProps> = ({
   const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
   const [draggedTeam, setDraggedTeam] = useState<string | null>(null);
 
-  // Инициализация сетки
   const initializeBracket = useCallback(() => {
     if (tournamentMode === '1vs1') {
       const participantCount = players.length;
@@ -245,7 +272,6 @@ const TournamentBracket: React.FC<BracketProps> = ({
     initializeBracket();
   }, [initializeBracket]);
 
-  // Функции распределения
   const shuffleRandomly = () => {
     if (tournamentMode === '1vs1') {
       const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
@@ -288,7 +314,6 @@ const TournamentBracket: React.FC<BracketProps> = ({
     }
   };
 
-  // Drag and Drop функции
   const handleDragStart = (playerId: string, teamId: string | null = null) => {
     if (playerId) setDraggedPlayer(playerId);
     if (teamId) setDraggedTeam(teamId);
@@ -350,7 +375,6 @@ const TournamentBracket: React.FC<BracketProps> = ({
         </div>
         
         <div style={styles.matchSlots}>
-          {/* Слот 1 */}
           <div
             style={styles.matchSlot}
             onDragOver={handleDragOver}
@@ -373,7 +397,6 @@ const TournamentBracket: React.FC<BracketProps> = ({
           
           <div style={styles.vsSeparator}>VS</div>
           
-          {/* Слот 2 */}
           <div
             style={styles.matchSlot}
             onDragOver={handleDragOver}
@@ -439,7 +462,6 @@ const TournamentBracket: React.FC<BracketProps> = ({
         )}
       </div>
 
-      {/* Участники для перетаскивания (только для организаторов) */}
       {isOrganizer && (
         <div style={styles.draggableParticipants}>
           <h4 style={styles.draggableTitle}>
@@ -468,7 +490,6 @@ const TournamentBracket: React.FC<BracketProps> = ({
         </div>
       )}
 
-      {/* Турнирная сетка */}
       <div style={styles.bracketGrid}>
         {matches.map(renderMatch)}
       </div>
@@ -516,7 +537,6 @@ const App: React.FC = () => {
   
   const rulesTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-dismiss messages
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => setError(''), 5000);
@@ -531,7 +551,6 @@ const App: React.FC = () => {
     }
   }, [successMessage]);
 
-  // Восстановление состояния аутентификации при загрузке
   useEffect(() => {
     const savedEmail = localStorage.getItem('tournament_user_email');
     const savedOrganizer = localStorage.getItem('tournament_organizer');
@@ -548,7 +567,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Оптимизированные подписки на данные с дебаунсингом и loading
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -558,7 +576,6 @@ const App: React.FC = () => {
     let applicationsUnsubscribe: () => void;
 
     const initSubscriptions = () => {
-      // Players subscription
       playersUnsubscribe = onSnapshot(collection(db, 'players'), (snapshot) => {
         const playersData = snapshot.docs.map(doc => ({ 
           id: doc.id, 
@@ -568,7 +585,6 @@ const App: React.FC = () => {
         setPlayers(playersData);
       });
 
-      // Teams subscription
       teamsUnsubscribe = onSnapshot(collection(db, 'teams'), (snapshot) => {
         const teamsData = snapshot.docs.map(doc => ({ 
           id: doc.id, 
@@ -579,7 +595,6 @@ const App: React.FC = () => {
         setTeams(teamsData);
       });
 
-      // Applications subscription
       applicationsUnsubscribe = onSnapshot(collection(db, 'applications'), (snapshot) => {
         const applicationsData = snapshot.docs.map(doc => ({ 
           id: doc.id, 
@@ -593,7 +608,6 @@ const App: React.FC = () => {
       setIsDataLoading(false);
     };
 
-    // Debounce init
     const timeoutId = setTimeout(initSubscriptions, 300);
 
     return () => {
@@ -605,7 +619,6 @@ const App: React.FC = () => {
     };
   }, [isAuthenticated]);
 
-  // Расчет среднего MMR команды
   const calculateTeamAverageMMR = useCallback((playerIds: string[]): number => {
     if (playerIds.length === 0) return 0;
     
@@ -620,7 +633,6 @@ const App: React.FC = () => {
     return Math.round(totalMMR / teamPlayers.length);
   }, [players]);
 
-  // Обновление среднего MMR для команд
   useEffect(() => {
     const updatedTeams = teams.map(team => ({
       ...team,
@@ -629,7 +641,6 @@ const App: React.FC = () => {
     setTeams(updatedTeams);
   }, [players, teams, calculateTeamAverageMMR]);
 
-  // Поиск текущего игрока и команды
   useEffect(() => {
     if (userEmail && players.length > 0) {
       const userPlayer = players.find(p => p.userEmail === userEmail);
@@ -644,7 +655,6 @@ const App: React.FC = () => {
     }
   }, [userEmail, players, teams]);
 
-  // Загрузка правил турнира
   const loadTournamentRules = useCallback(async () => {
     try {
       const rulesDoc = await getDoc(doc(db, 'settings', 'tournamentRules'));
@@ -662,14 +672,12 @@ const App: React.FC = () => {
     }
   }, [isAuthenticated, loadTournamentRules]);
 
-  // Улучшенная валидация email
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
 
   const handleLogin = (email: string) => {
-    // Проверка на код организатора
     const organizerInfo = ORGANIZERS.find(org => org.code === email);
     if (organizerInfo) {
       setIsOrganizer(true);
@@ -684,7 +692,6 @@ const App: React.FC = () => {
       return;
     }
 
-    // Для обычных пользователей - валидация и вход
     if (!validateEmail(email)) {
       setError('Некорректный email. Пример: example@domain.com');
       return;
@@ -1078,7 +1085,6 @@ const App: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      {/* Rules Modal */}
       {showRules && (
         <div style={styles.modalOverlay} onClick={() => {
           setShowRules(false);
@@ -1181,7 +1187,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Header */}
       <header style={styles.header}>
         <div style={styles.headerContent}>
           <div>
@@ -1220,7 +1225,6 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Navigation - ВСЕГДА ВИДИМА ПРИ АУТЕНТИФИКАЦИИ */}
       {isAuthenticated && (
         <nav style={styles.nav}>
           <div style={styles.navContent}>
@@ -1240,9 +1244,7 @@ const App: React.FC = () => {
         </nav>
       )}
 
-      {/* Main Content */}
       <main style={styles.main}>
-        {/* Messages */}
         {error && (
           <div style={styles.errorMessage}>
             <span style={styles.errorIcon}>!</span>
@@ -1257,11 +1259,9 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Tab Content */}
         <div style={styles.tabContent}>
           {loading && <div style={styles.loadingSpinner}>Загрузка...</div>}
           
-          {/* Add Player Tab */}
           {activeTab === 'add-player' && (
             <div style={styles.formContainer}>
               {myPlayer ? (
@@ -1408,7 +1408,6 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Players List Tab */}
           {activeTab === 'players-list' && (
             <div>
               <div style={styles.tabHeader}>
@@ -1479,7 +1478,6 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Teams Tab */}
           {activeTab === 'create-team' && (
             <div>
               <div style={styles.tabHeader}>
@@ -1627,7 +1625,6 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Tournament Bracket Tab */}
           {activeTab === 'bracket' && (
             <TournamentBracket
               players={players}
@@ -1643,38 +1640,22 @@ const App: React.FC = () => {
   );
 };
 
-// Полные стили
+// Styles with all properties defined
 const styles = {
   container: {
     minHeight: '100vh',
     background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
     fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
   },
-  
-  // Login Styles
-  loginBackground: {
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  width: '110%', 
-  height: '110%', 
-  objectFit: 'contain', 
-  zIndex: 0,
-  opacity: 0.5,
-  filter: 'blur(1.5px)', 
-  transform: 'scale(0.85) translate(-7%, -7%)', 
-},
-
   loginContainer: {
     minHeight: '100vh',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    background: '#000000', // Total black как в Grok
-    position: 'relative',
+    background: '#000000',
+    position: 'relative' as const,
     overflow: 'hidden'
   },
-  
   loginForm: {
     background: 'rgba(255, 255, 255, 0.1)',
     backdropFilter: 'blur(10px)',
@@ -1685,33 +1666,28 @@ const styles = {
     maxWidth: '400px',
     zIndex: 2
   },
-  
   loginTitle: {
     color: 'white',
-    textAlign: 'center',
+    textAlign: 'center' as const,
     marginBottom: '0.5rem',
     fontSize: '2rem'
   },
-  
   loginSubtitle: {
     color: 'rgba(255, 255, 255, 0.7)',
-    textAlign: 'center',
+    textAlign: 'center' as const,
     marginBottom: '2rem'
   },
-  
   buttonContainer: {
     display: 'flex',
     justifyContent: 'center',
     marginTop: '1.5rem'
   },
-  
   header: {
     background: 'rgba(255, 255, 255, 0.1)',
     backdropFilter: 'blur(10px)',
     borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
     padding: '1rem 0'
   },
-  
   headerContent: {
     maxWidth: '1200px',
     margin: '0 auto',
@@ -1720,25 +1696,21 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center'
   },
-  
   headerRight: {
     display: 'flex',
     alignItems: 'center',
     gap: '1rem'
   },
-  
   userInfo: {
     display: 'flex',
     alignItems: 'center',
     gap: '1rem',
     color: 'white'
   },
-  
   userEmail: {
     fontSize: '0.9rem',
     fontWeight: '500'
   },
-  
   teamBadge: {
     background: 'rgba(59, 130, 246, 0.2)',
     color: '#3b82f6',
@@ -1747,7 +1719,6 @@ const styles = {
     borderRadius: '12px',
     fontSize: '0.8rem'
   },
-  
   logoutButton: {
     background: 'rgba(239, 68, 68, 0.2)',
     color: '#fca5a5',
@@ -1757,20 +1728,17 @@ const styles = {
     cursor: 'pointer',
     fontSize: '0.8rem'
   },
-  
   title: {
     color: 'white',
     fontSize: '2.5rem',
     fontWeight: 'bold',
     margin: 0
   },
-  
   subtitle: {
     color: 'rgba(255, 255, 255, 0.8)',
     margin: 0,
     fontSize: '1.1rem'
   },
-  
   rulesButton: {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.3)',
@@ -1781,12 +1749,10 @@ const styles = {
     fontSize: '1rem',
     fontWeight: '500'
   },
-  
   nav: {
     background: 'rgba(255, 255, 255, 0.05)',
     borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
   },
-  
   navContent: {
     maxWidth: '1200px',
     margin: '0 auto',
@@ -1794,7 +1760,6 @@ const styles = {
     display: 'flex',
     gap: '0'
   },
-  
   navButton: {
     padding: '1rem 2rem',
     background: 'none',
@@ -1806,18 +1771,15 @@ const styles = {
     transition: 'border-bottom 0.3s ease',
     borderBottom: '3px solid transparent'
   },
-  
   navButtonActive: {
     color: 'white',
     borderBottomColor: '#10b981'
   },
-  
   main: {
     maxWidth: '1200px',
     margin: '0 auto',
     padding: '2rem 1rem'
   },
-  
   errorMessage: {
     background: 'rgba(239, 68, 68, 0.1)',
     border: '1px solid rgba(239, 68, 68, 0.3)',
@@ -1829,7 +1791,6 @@ const styles = {
     alignItems: 'center',
     gap: '0.5rem'
   },
-  
   errorIcon: {
     background: '#ef4444',
     color: 'white',
@@ -1842,7 +1803,6 @@ const styles = {
     fontSize: '12px',
     fontWeight: 'bold'
   },
-  
   successMessage: {
     background: 'rgba(16, 185, 129, 0.1)',
     border: '1px solid rgba(16, 185, 129, 0.3)',
@@ -1854,7 +1814,6 @@ const styles = {
     alignItems: 'center',
     gap: '0.5rem'
   },
-  
   successIcon: {
     background: '#10b981',
     color: 'white',
@@ -1867,7 +1826,6 @@ const styles = {
     fontSize: '12px',
     fontWeight: 'bold'
   },
-  
   tabContent: {
     background: 'rgba(255, 255, 255, 0.1)',
     backdropFilter: 'blur(10px)',
@@ -1875,49 +1833,41 @@ const styles = {
     border: '1px solid rgba(255, 255, 255, 0.2)',
     padding: '2rem'
   },
-  
   formContainer: {
     maxWidth: '600px',
     margin: '0 auto'
   },
-  
   tabTitle: {
     color: 'white',
     fontSize: '2rem',
     fontWeight: 'bold',
     marginBottom: '0.5rem'
   },
-  
   tabSubtitle: {
     color: 'rgba(255, 255, 255, 0.7)',
     marginBottom: '2rem',
     fontSize: '1.1rem'
   },
-  
   form: {
     display: 'flex',
     flexDirection: 'column',
     gap: '1.5rem'
   },
-  
   formGrid: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
     gap: '1rem'
   },
-  
   formGroup: {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.5rem'
   },
-  
   label: {
     color: 'white',
     fontWeight: '600',
     fontSize: '0.9rem'
   },
-  
   input: {
     padding: '0.75rem 1rem',
     background: 'rgba(0, 0, 0, 0.3)',
@@ -1927,23 +1877,19 @@ const styles = {
     fontSize: '1rem',
     fontWeight: '500'
   },
-  
   inputError: {
     borderColor: '#ef4444',
     background: 'rgba(239, 68, 68, 0.1)'
   },
-  
   errorHint: {
     color: '#fca5a5',
     fontSize: '0.8rem',
     marginTop: '0.25rem'
   },
-  
   selectContainer: {
     position: 'relative',
     display: 'inline-block'
   },
-  
   select: {
     padding: '0.75rem 1rem',
     background: 'rgba(0, 0, 0, 0.4)',
@@ -1955,7 +1901,6 @@ const styles = {
     appearance: 'none',
     fontWeight: '500'
   },
-  
   selectArrow: {
     position: 'absolute',
     right: '1rem',
@@ -1964,21 +1909,19 @@ const styles = {
     color: 'white',
     pointerEvents: 'none'
   },
-  
   submitButton: {
     padding: '1rem 2rem',
-    background: '#ffffff', // Белый фон как в SuperGrok
-    color: '#000000', // Черный текст
+    background: '#ffffff',
+    color: '#000000',
     border: 'none',
-    borderRadius: '20px', // Более скругленный как в SuperGrok
+    borderRadius: '20px',
     fontSize: '1.1rem',
     fontWeight: '600',
     cursor: 'pointer',
     marginTop: '1rem',
     transition: 'opacity 0.3s',
-    boxShadow: '0 0 10px rgba(255, 255, 255, 0.5)' // Легкое свечение
+    boxShadow: '0 0 10px rgba(255, 255, 255, 0.5)'
   },
-  
   secondaryButton: {
     padding: '0.75rem 1.5rem',
     background: 'rgba(255, 255, 255, 0.1)',
@@ -1990,12 +1933,10 @@ const styles = {
     cursor: 'pointer',
     transition: 'background 0.3s'
   },
-  
   buttonDisabled: {
     opacity: '0.5',
     cursor: 'not-allowed'
   },
-  
   playerPreview: {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
@@ -2003,96 +1944,80 @@ const styles = {
     padding: '1.5rem',
     margin: '1rem 0'
   },
-  
   previewTitle: {
     color: 'white',
     marginBottom: '1rem',
     fontSize: '1.1rem'
   },
-  
   previewContent: {
     display: 'flex',
     alignItems: 'center',
     gap: '1.5rem'
   },
-  
   rankInfo: {
     display: 'flex',
     alignItems: 'center',
     gap: '1rem'
   },
-  
   rankImage: {
     width: '60px',
     height: '60px',
     objectFit: 'contain'
   },
-  
   rankName: {
     color: 'white',
     fontWeight: '600',
     fontSize: '1.1rem'
   },
-  
   mmr: {
     color: 'rgba(255, 255, 255, 0.8)',
     fontSize: '0.9rem'
   },
-  
   tabHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: '2rem'
   },
-  
   counter: {
     color: 'rgba(255, 255, 255, 0.7)',
     fontSize: '1.1rem'
   },
-  
   emptyState: {
-    textAlign: 'center',
+    textAlign: 'center' as const,
     padding: '4rem 2rem',
     color: 'rgba(255, 255, 255, 0.7)'
   },
-  
   emptyText: {
     fontSize: '1.2rem',
     margin: 0
   },
-  
   grid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
     gap: '1.5rem'
   },
-  
   card: {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
     borderRadius: '12px',
     padding: '1.5rem'
   },
-  
   cardHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: '1rem'
   },
-  
   playerMainInfo: {
     flex: 1
   },
-  
   playerName: {
     color: 'white',
     fontSize: '1.3rem',
     fontWeight: '600',
     margin: '0 0 0.5rem 0'
   },
-  
   platform: {
     background: 'rgba(255, 255, 255, 0.2)',
     color: 'white',
@@ -2101,52 +2026,44 @@ const styles = {
     fontSize: '0.8rem',
     fontWeight: '500'
   },
-  
   cardRankImage: {
     width: '50px',
     height: '50px',
     objectFit: 'contain'
   },
-  
   playerStats: {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.5rem',
     marginBottom: '1rem'
   },
-  
   stat: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center'
   },
-  
   statLabel: {
     color: 'rgba(255, 255, 255, 0.7)',
     fontSize: '0.9rem'
   },
-  
   statValue: {
     color: 'white',
     fontWeight: '500'
   },
-  
   cardActions: {
     display: 'flex',
     gap: '0.5rem'
   },
-  
   profileLink: {
     flex: 1,
     background: 'rgba(255, 255, 255, 0.1)',
     color: 'white',
-    textAlign: 'center',
+    textAlign: 'center' as const,
     padding: '0.75rem',
     borderRadius: '6px',
     textDecoration: 'none',
     fontSize: '0.9rem'
   },
-  
   deleteBtn: {
     background: 'rgba(239, 68, 68, 0.2)',
     color: '#fca5a5',
@@ -2156,28 +2073,24 @@ const styles = {
     cursor: 'pointer',
     fontSize: '0.9rem'
   },
-  
   teamCard: {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
     borderRadius: '12px',
     padding: '1.5rem'
   },
-  
   teamHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: '1rem'
   },
-  
   teamName: {
     color: 'white',
     fontSize: '1.3rem',
     fontWeight: '600',
     margin: 0
   },
-  
   teamInfo: {
     display: 'flex',
     flexDirection: 'column',
@@ -2186,12 +2099,10 @@ const styles = {
     color: 'rgba(255, 255, 255, 0.7)',
     fontSize: '0.9rem'
   },
-  
   teamPlayers: {
     marginTop: '1rem',
     color: 'rgba(255, 255, 255, 0.8)'
   },
-  
   teamPlayer: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -2199,12 +2110,10 @@ const styles = {
     padding: '0.5rem 0',
     borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
   },
-  
   teamPlayerName: {
     color: 'white',
     fontWeight: '500'
   },
-  
   teamActions: {
     display: 'flex',
     gap: '0.5rem',
@@ -2212,7 +2121,6 @@ const styles = {
     justifyContent: 'center',
     marginTop: '1rem'
   },
-  
   applyBtn: {
     background: 'linear-gradient(45deg, #3b82f6, #1d4ed8)',
     color: 'white',
@@ -2223,7 +2131,6 @@ const styles = {
     fontSize: '0.9rem',
     fontWeight: '500'
   },
-  
   pendingBadge: {
     background: 'rgba(245, 158, 11, 0.2)',
     color: '#fcd34d',
@@ -2232,7 +2139,6 @@ const styles = {
     borderRadius: '6px',
     fontSize: '0.8rem'
   },
-  
   memberBadge: {
     background: 'rgba(16, 185, 129, 0.2)',
     color: '#10b981',
@@ -2241,13 +2147,11 @@ const styles = {
     borderRadius: '6px',
     fontSize: '0.8rem'
   },
-  
   applicationsSection: {
     marginTop: '1rem',
     paddingTop: '1rem',
     borderTop: '1px solid rgba(255, 255, 255, 0.1)'
   },
-  
   applicationCard: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -2257,17 +2161,14 @@ const styles = {
     borderRadius: '6px',
     marginBottom: '0.5rem'
   },
-  
   applicationPlayer: {
     color: 'white',
     fontWeight: '500'
   },
-  
   applicationDetails: {
     color: 'rgba(255, 255, 255, 0.7)',
     fontSize: '0.8rem'
   },
-  
   approveBtn: {
     background: '#10b981',
     color: 'white',
@@ -2278,7 +2179,6 @@ const styles = {
     marginLeft: '0.5rem',
     fontSize: '0.8rem'
   },
-  
   rejectBtn: {
     background: 'rgba(239, 68, 68, 0.2)',
     color: '#fca5a5',
@@ -2289,18 +2189,15 @@ const styles = {
     marginLeft: '0.5rem',
     fontSize: '0.8rem'
   },
-  
   createTeamSection: {
     background: 'rgba(255, 255, 255, 0.05)',
     padding: '1.5rem',
     borderRadius: '8px',
     marginBottom: '2rem'
   },
-  
   myProfileContainer: {
-    textAlign: 'center'
+    textAlign: 'center' as const
   },
-  
   profileCard: {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
@@ -2309,31 +2206,26 @@ const styles = {
     maxWidth: '400px',
     margin: '0 auto'
   },
-  
   profileHeader: {
     marginBottom: '1.5rem'
   },
-  
   profileStats: {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.5rem',
     marginBottom: '1.5rem'
   },
-  
   teamSection: {
     marginBottom: '1.5rem',
     padding: '1rem',
     background: 'rgba(255, 255, 255, 0.05)',
     borderRadius: '8px'
   },
-  
   teamMMR: {
     color: 'rgba(255, 255, 255, 0.7)',
     fontSize: '0.9rem',
     margin: '0.5rem 0'
   },
-  
   leaveTeamBtn: {
     background: 'rgba(239, 68, 68, 0.2)',
     color: '#fca5a5',
@@ -2343,7 +2235,6 @@ const styles = {
     cursor: 'pointer',
     marginTop: '0.5rem'
   },
-  
   deleteAccountBtn: {
     background: 'rgba(239, 68, 68, 0.3)',
     color: '#fca5a5',
@@ -2353,12 +2244,9 @@ const styles = {
     cursor: 'pointer',
     width: '100%'
   },
-  
-  // Tournament Bracket Styles
   bracketContainer: {
     width: '100%'
   },
-  
   bracketHeader: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -2367,14 +2255,12 @@ const styles = {
     flexWrap: 'wrap',
     gap: '1rem'
   },
-  
   bracketTitle: {
     color: 'white',
     fontSize: '2rem',
     fontWeight: 'bold',
     margin: 0
   },
-  
   modeSelector: {
     display: 'flex',
     gap: '0.5rem',
@@ -2382,7 +2268,6 @@ const styles = {
     borderRadius: '8px',
     padding: '0.25rem'
   },
-  
   modeButton: {
     background: 'none',
     border: 'none',
@@ -2393,18 +2278,15 @@ const styles = {
     fontSize: '0.9rem',
     fontWeight: '500'
   },
-  
   modeButtonActive: {
     background: 'rgba(255, 255, 255, 0.2)',
     color: 'white'
   },
-  
   organizerControls: {
     display: 'flex',
     gap: '0.5rem',
     flexWrap: 'wrap'
   },
-  
   controlButton: {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.3)',
@@ -2414,26 +2296,22 @@ const styles = {
     cursor: 'pointer',
     fontSize: '0.8rem'
   },
-  
   draggableParticipants: {
     background: 'rgba(255, 255, 255, 0.05)',
     borderRadius: '8px',
     padding: '1rem',
     marginBottom: '2rem'
   },
-  
   draggableTitle: {
     color: 'white',
     fontSize: '1rem',
     marginBottom: '1rem'
   },
-  
   participantsGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
     gap: '0.5rem'
   },
-  
   draggableItem: {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
@@ -2444,48 +2322,40 @@ const styles = {
     flexDirection: 'column',
     gap: '0.25rem'
   },
-  
   draggableName: {
     color: 'white',
     fontSize: '0.9rem',
     fontWeight: '500'
   },
-  
   draggableMMR: {
     color: 'rgba(255, 255, 255, 0.7)',
     fontSize: '0.8rem'
   },
-  
   bracketGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
     gap: '1rem'
   },
-  
   matchCard: {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
     borderRadius: '8px',
     padding: '1rem'
   },
-  
   matchHeader: {
     marginBottom: '1rem',
-    textAlign: 'center'
+    textAlign: 'center' as const
   },
-  
   matchTitle: {
     color: 'white',
     fontSize: '0.9rem',
     fontWeight: '500'
   },
-  
   matchSlots: {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.75rem'
   },
-  
   matchSlot: {
     background: 'rgba(255, 255, 255, 0.05)',
     border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -2496,20 +2366,17 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center'
   },
-  
   emptySlot: {
     color: 'rgba(255, 255, 255, 0.5)',
     fontSize: '0.8rem',
-    textAlign: 'center'
+    textAlign: 'center' as const
   },
-  
   vsSeparator: {
     color: 'rgba(255, 255, 255, 0.7)',
-    textAlign: 'center',
+    textAlign: 'center' as const,
     fontSize: '0.9rem',
     fontWeight: 'bold'
   },
-  
   participantInfo: {
     display: 'flex',
     flexDirection: 'column',
@@ -2517,34 +2384,28 @@ const styles = {
     gap: '0.25rem',
     width: '100%'
   },
-  
   participantName: {
     color: 'white',
     fontSize: '0.9rem',
     fontWeight: '500',
-    textAlign: 'center'
+    textAlign: 'center' as const
   },
-  
   participantMMR: {
     color: 'rgba(255, 255, 255, 0.7)',
     fontSize: '0.8rem',
-    textAlign: 'center'
+    textAlign: 'center' as const
   },
-  
   emptyBracket: {
-    textAlign: 'center',
+    textAlign: 'center' as const,
     padding: '4rem 2rem',
     color: 'rgba(255, 255, 255, 0.7)'
   },
-  
   emptyBracketText: {
     fontSize: '1.2rem',
     margin: 0
   },
-  
-  // Modal Styles
   modalOverlay: {
-    position: 'fixed',
+    position: 'fixed' as const,
     top: 0,
     left: 0,
     right: 0,
@@ -2555,7 +2416,6 @@ const styles = {
     alignItems: 'center',
     zIndex: 1000
   },
-  
   modalContent: {
     background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
     borderRadius: '12px',
@@ -2566,21 +2426,18 @@ const styles = {
     overflow: 'auto',
     border: '1px solid rgba(255, 255, 255, 0.2)'
   },
-  
   modalHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: '1.5rem'
   },
-  
   modalTitle: {
     color: 'white',
     fontSize: '1.5rem',
     fontWeight: 'bold',
     margin: 0
   },
-  
   closeButton: {
     background: 'none',
     border: 'none',
@@ -2594,7 +2451,6 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center'
   },
-  
   rulesTextContainer: {
     maxHeight: '400px',
     overflowY: 'auto',
@@ -2603,7 +2459,6 @@ const styles = {
     borderRadius: '8px',
     marginBottom: '1rem'
   },
-  
   rulesText: {
     color: 'white',
     fontSize: '0.9rem',
@@ -2612,13 +2467,11 @@ const styles = {
     fontFamily: 'inherit',
     margin: 0
   },
-  
   modalActions: {
     display: 'flex',
     gap: '1rem',
     justifyContent: 'flex-end'
   },
-  
   saveButton: {
     background: '#10b981',
     color: 'white',
@@ -2629,7 +2482,6 @@ const styles = {
     fontWeight: '500',
     fontSize: '1rem'
   },
-  
   cancelButton: {
     background: 'rgba(255, 255, 255, 0.1)',
     color: 'white',
@@ -2640,7 +2492,6 @@ const styles = {
     fontWeight: '500',
     fontSize: '1rem'
   },
-  
   editButton: {
     background: 'rgba(255, 255, 255, 0.1)',
     color: 'white',
@@ -2652,8 +2503,6 @@ const styles = {
     fontSize: '1rem',
     width: '100%'
   },
-
-  // New loading styles
   loadingContainer: {
     display: 'flex',
     justifyContent: 'center',
@@ -2661,33 +2510,30 @@ const styles = {
     height: '100vh',
     color: 'white'
   },
-
   loadingSpinner: {
     color: 'white',
     fontSize: '1.5rem'
   },
-
-  // Particles styles
   particlesContainer: {
-    position: 'absolute',
+    position: 'absolute' as const,
     top: 0,
     left: 0,
     width: '100%',
     height: '100%',
-    zIndex: 1, // Под формой логина
-    pointerEvents: 'none', // Не мешает взаимодействию
+    zIndex: 1,
+    pointerEvents: 'none',
     overflow: 'hidden'
   },
   particle: {
-    position: 'absolute',
-    background: 'rgba(255, 255, 255, 0.95)', // Чуть ярче для заметности
+    position: 'absolute' as const,
+    background: 'rgba(255, 255, 255, 0.95)',
     borderRadius: '50%',
-    animation: 'float 120s infinite linear', // Базовая длительность 120 секунд, линейное движение
-    boxShadow: '0 0 4px 0.5px rgba(255, 255, 255, 0.2)', // Ещё более мягкое свечение
-  }
+    animation: 'float 120s infinite linear',
+    boxShadow: '0 0 4px 0.5px rgba(255, 255, 255, 0.2)'
+  },
 } as const;
 
-// Keyframes для анимации (добавляем глобально, но в React это можно вставить в <style> или использовать styled-components, здесь - в объекте стилей)
+// Add global keyframes
 const globalStyles = document.createElement('style');
 globalStyles.innerHTML = `
   @keyframes float {
@@ -2696,11 +2542,11 @@ globalStyles.innerHTML = `
       opacity: 0.6;
     }
     25% {
-      transform: translateY(-15px) scale(1.01); // Минимальный подъем
+      transform: translateY(-15px) scale(1.01);
       opacity: 0.4;
     }
     50% {
-      transform: translateY(-25px) scale(1.02); // Максимум -25px
+      transform: translateY(-25px) scale(1.02);
       opacity: 0.3;
     }
     75% {
