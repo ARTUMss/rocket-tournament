@@ -525,7 +525,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('add-player');
   const [playerData, setPlayerData] = useState<any>(null);
   const [showRules, setShowRules] = useState(false);
-  const [tournamentRules, setTournamentRules] = useState('<p>Правила турнира:</p><ol><li>Состав команды: 3 игрока в команде</li><li>Формат: Двойная элиминация</li><li>Правила матчей: Best of 3 для ранних раундов, Best of 5 для финала</li><li>Выбор сервера: Предпочтительно EU серверы</li><li>Расписание: Матчи должны быть завершены в установленные сроки</li></ol><p>Пожалуйста, обеспечивайте честную игру и хорошее спортивное поведение на протяжении всего турнира.</p>');
+  const [tournamentRules, setTournamentRules] = useState('<p>Правила турнира:</p>');
   const [editingRules, setEditingRules] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
